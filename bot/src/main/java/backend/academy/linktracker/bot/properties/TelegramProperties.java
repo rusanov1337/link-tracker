@@ -31,4 +31,8 @@ public class TelegramProperties {
     private Duration updateListenerSleep = Duration.ofSeconds(1);
 
     private boolean debug;
+
+    private boolean pollingEnabled = true;
+
+    private boolean setMyCommandsEnabled = true;
 }

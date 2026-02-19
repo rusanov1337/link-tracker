@@ -4,3 +4,5 @@ app:
     token: test-token
     update-listener-sleep: 1s
     debug: true
+    polling-enabled: false
+    set-my-commands-enabled: false
