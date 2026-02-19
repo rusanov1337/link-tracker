@@ -17,6 +17,8 @@ public class BotCommandService {
             /start - начать работу с ботом
             /help - показать список доступных команд
             """;
+    static final String UNKNOWN_COMMAND_MESSAGE =
+            "Неизвестная команда. Воспользуйтесь /help, чтобы посмотреть список доступных команд.";
 
     public Optional<SendMessage> createResponse(Update update) {
         var message = update.message();
@@ -30,6 +32,10 @@ public class BotCommandService {
 
         if (message.text().startsWith(HELP_COMMAND)) {
             return Optional.of(new SendMessage(message.chat().id().longValue(), HELP_MESSAGE));
+        }
+
+        if (message.text().startsWith("/")) {
+            return Optional.of(new SendMessage(message.chat().id().longValue(), UNKNOWN_COMMAND_MESSAGE));
         }
 
         return Optional.empty();
