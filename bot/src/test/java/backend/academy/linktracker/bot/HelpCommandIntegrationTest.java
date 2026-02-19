@@ -87,11 +87,12 @@ class HelpCommandIntegrationTest {
                                 }
                                 """)));
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> verify(
-                1,
-                postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))
-                        .withRequestBody(containing("chat_id=987654321"))
-                        .withRequestBody(containing("%2Fstart"))
-                        .withRequestBody(containing("%2Fhelp"))));
+        await().atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> verify(
+                        1,
+                        postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))
+                                .withRequestBody(containing("chat_id=987654321"))
+                                .withRequestBody(containing("%2Fstart"))
+                                .withRequestBody(containing("%2Fhelp"))));
     }
 }
