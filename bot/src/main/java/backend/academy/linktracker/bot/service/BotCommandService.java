@@ -9,7 +9,14 @@ import org.springframework.stereotype.Service;
 public class BotCommandService {
 
     static final String START_COMMAND = "/start";
+    static final String HELP_COMMAND = "/help";
     static final String START_MESSAGE = "Добро пожаловать! Используйте /help, чтобы посмотреть доступные команды.";
+    static final String HELP_MESSAGE =
+            """
+            Доступные команды:
+            /start - начать работу с ботом
+            /help - показать список доступных команд
+            """;
 
     public Optional<SendMessage> createResponse(Update update) {
         var message = update.message();
@@ -18,7 +25,11 @@ public class BotCommandService {
         }
 
         if (message.text().startsWith(START_COMMAND)) {
-            return Optional.of(new SendMessage(message.chat().id(), START_MESSAGE));
+            return Optional.of(new SendMessage(message.chat().id().longValue(), START_MESSAGE));
+        }
+
+        if (message.text().startsWith(HELP_COMMAND)) {
+            return Optional.of(new SendMessage(message.chat().id().longValue(), HELP_MESSAGE));
         }
 
         return Optional.empty();
