@@ -34,7 +34,7 @@ public class TelegramCommandMenuRegistrar {
                     .toArray(BotCommand[]::new);
             var response = telegramBot.execute(new SetMyCommands(commands));
 
-            if (response != null && response.isOk()) {
+            if (response.isOk()) {
                 LOGGER.atInfo()
                         .addKeyValue("operation", "setMyCommands")
                         .addKeyValue("success", true)
@@ -47,8 +47,8 @@ public class TelegramCommandMenuRegistrar {
                     .addKeyValue("operation", "setMyCommands")
                     .addKeyValue("success", false)
                     .addKeyValue("commandsCount", commands.length)
-                    .addKeyValue("errorCode", response == null ? null : response.errorCode())
-                    .addKeyValue("errorDescription", response == null ? "null response" : response.description())
+                    .addKeyValue("errorCode", response.errorCode())
+                    .addKeyValue("errorDescription", response.description())
                     .log("Telegram command menu configuration failed");
         } catch (RuntimeException exception) {
             LOGGER.atWarn()

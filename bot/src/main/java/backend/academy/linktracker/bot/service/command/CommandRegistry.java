@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 @Component
-public class CommandRegistry {
+public final class CommandRegistry {
 
     private final Map<String, CommandHandler> handlersByCommand;
     private final CommandHandler fallbackHandler;

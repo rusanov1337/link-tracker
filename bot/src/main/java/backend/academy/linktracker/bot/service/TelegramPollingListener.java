@@ -60,7 +60,7 @@ public class TelegramPollingListener {
         for (int attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt++) {
             try {
                 var sendResponse = telegramBot.execute(sendMessage);
-                if (sendResponse != null && sendResponse.isOk()) {
+                if (sendResponse.isOk()) {
                     LOGGER.atInfo()
                             .addKeyValue("operation", "sendMessage")
                             .addKeyValue("updateId", update.updateId())
@@ -77,9 +77,8 @@ public class TelegramPollingListener {
                         .addKeyValue("attempt", attempt)
                         .addKeyValue("chatId", sendMessage.getChatId())
                         .addKeyValue("success", false)
-                        .addKeyValue("errorCode", sendResponse == null ? null : sendResponse.errorCode())
-                        .addKeyValue(
-                                "errorDescription", sendResponse == null ? "null response" : sendResponse.description())
+                        .addKeyValue("errorCode", sendResponse.errorCode())
+                        .addKeyValue("errorDescription", sendResponse.description())
                         .log("Telegram response send failed");
                 botMetricsService.incrementSendFailuresTotal();
             } catch (RuntimeException exception) {

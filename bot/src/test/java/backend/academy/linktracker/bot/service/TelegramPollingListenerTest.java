@@ -1,13 +1,17 @@
 package backend.academy.linktracker.bot.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
-import com.pengrad.telegrambot.model.BotCommand;
-import com.pengrad.telegrambot.request.SetMyCommands;
+import com.pengrad.telegrambot.model.Update;
+import com.pengrad.telegrambot.request.SendMessage;
+import com.pengrad.telegrambot.response.SendResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,20 +28,46 @@ class TelegramPollingListenerTest {
     private BotCommandService botCommandService;
 
     @Test
-    void startPollingRegistersBotCommandsOnStartup() {
-        var pollingListener = new TelegramPollingListener(telegramBot, botCommandService);
+    void startPollingRegistersUpdatesListener() {
+        var pollingListener =
+                new TelegramPollingListener(telegramBot, botCommandService, metrics(new SimpleMeterRegistry()));
 
         pollingListener.startPolling();
 
-        var requestCaptor = ArgumentCaptor.forClass(SetMyCommands.class);
-        verify(telegramBot).execute(requestCaptor.capture());
         verify(telegramBot).setUpdatesListener(org.mockito.ArgumentMatchers.any(UpdatesListener.class));
+    }
 
-        Object commands = requestCaptor.getValue().getParameters().get("commands");
-        var botCommands = assertInstanceOf(BotCommand[].class, commands);
+    @Test
+    void processRetriesSendMessageAfterExecuteFailure() {
+        var meterRegistry = new SimpleMeterRegistry();
+        var pollingListener = new TelegramPollingListener(telegramBot, botCommandService, metrics(meterRegistry));
 
-        assertEquals(2, botCommands.length);
-        assertEquals("/start", botCommands[0].command());
-        assertEquals("/help", botCommands[1].command());
+        pollingListener.startPolling();
+
+        var listenerCaptor = ArgumentCaptor.forClass(UpdatesListener.class);
+        verify(telegramBot).setUpdatesListener(listenerCaptor.capture());
+        var updatesListener = listenerCaptor.getValue();
+
+        var update = org.mockito.Mockito.mock(Update.class);
+        when(update.updateId()).thenReturn(123);
+
+        var sendMessage = new SendMessage(999L, "response");
+        when(botCommandService.createResponse(update)).thenReturn(Optional.of(sendMessage));
+
+        var okResponse = org.mockito.Mockito.mock(SendResponse.class);
+        when(okResponse.isOk()).thenReturn(true);
+        when(telegramBot.execute(org.mockito.ArgumentMatchers.any(SendMessage.class)))
+                .thenThrow(new RuntimeException("network glitch"))
+                .thenReturn(okResponse);
+
+        int result = updatesListener.process(List.of(update));
+
+        assertEquals(UpdatesListener.CONFIRMED_UPDATES_ALL, result);
+        verify(telegramBot, org.mockito.Mockito.times(2)).execute(org.mockito.ArgumentMatchers.any(SendMessage.class));
+        assertEquals(1.0, meterRegistry.find("send_failures_total").counter().count());
+    }
+
+    private BotMetricsService metrics(SimpleMeterRegistry meterRegistry) {
+        return new BotMetricsService(meterRegistry);
     }
 }
