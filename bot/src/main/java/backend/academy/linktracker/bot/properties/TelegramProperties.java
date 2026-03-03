@@ -33,4 +33,6 @@ public class TelegramProperties {
     private boolean debug;
 
     private boolean pollingEnabled = true;
+
+    private boolean setMyCommandsEnabled = true;
 }

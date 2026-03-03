@@ -1,7 +1,13 @@
 package backend.academy.linktracker.bot.service;
 
+import backend.academy.linktracker.bot.service.command.CommandContext;
+import backend.academy.linktracker.bot.service.command.CommandParser;
+import backend.academy.linktracker.bot.service.command.CommandRegistry;
+import backend.academy.linktracker.bot.service.command.StartCommandHandler;
+import backend.academy.linktracker.bot.service.command.UnknownCommandHandler;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.request.SendMessage;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,16 +17,23 @@ import org.springframework.stereotype.Service;
 public class BotCommandService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BotCommandService.class);
-    static final String START_COMMAND = "/start";
-    static final String HELP_COMMAND = "/help";
-    static final String START_MESSAGE = "Добро пожаловать! Используйте /help, чтобы посмотреть доступные команды.";
-    static final String HELP_MESSAGE = """
-            Доступные команды:
-            /start - начать работу с ботом
-            /help - показать список доступных команд
-            """;
-    static final String UNKNOWN_COMMAND_MESSAGE =
-            "Неизвестная команда. Воспользуйтесь /help, чтобы посмотреть список доступных команд.";
+    static final String START_MESSAGE = StartCommandHandler.RESPONSE;
+    static final String UNKNOWN_COMMAND_MESSAGE = UnknownCommandHandler.RESPONSE;
+
+    private final CommandParser commandParser;
+    private final CommandRegistry commandRegistry;
+    private final BotMetricsService botMetricsService;
+
+    public BotCommandService(
+            CommandParser commandParser, CommandRegistry commandRegistry, BotMetricsService botMetricsService) {
+        this.commandParser = commandParser;
+        this.commandRegistry = commandRegistry;
+        this.botMetricsService = botMetricsService;
+    }
+
+    public List<BotCommandDefinition> supportedCommands() {
+        return commandRegistry.supportedCommands();
+    }
 
     public Optional<SendMessage> createResponse(Update update) {
         var message = update.message();
@@ -35,20 +48,20 @@ public class BotCommandService {
 
         var chatId = message.chat().id().longValue();
         Long userId = message.from() == null ? null : message.from().id();
+        var commandRequest = commandParser.parse(message.text(), chatId, userId);
 
-        if (message.text().startsWith(START_COMMAND)) {
-            logHandledCommand(START_COMMAND, "start", "start-message", chatId, userId);
-            return Optional.of(new SendMessage(chatId, START_MESSAGE));
-        }
+        if (commandRequest.isPresent()) {
+            var parsedCommand = commandRequest.orElseThrow();
+            var isKnownCommand = commandRegistry.isKnown(parsedCommand.command());
+            var responseType = isKnownCommand ? "known-command-message" : "unknown-command-message";
+            var commandType = isKnownCommand ? "known" : "unknown";
+            var handler = commandRegistry.resolve(parsedCommand.command());
+            var context = new CommandContext(commandRegistry.supportedCommands());
+            var response = handler.handle(parsedCommand, context);
 
-        if (message.text().startsWith(HELP_COMMAND)) {
-            logHandledCommand(HELP_COMMAND, "help", "help-message", chatId, userId);
-            return Optional.of(new SendMessage(chatId, HELP_MESSAGE));
-        }
-
-        if (message.text().startsWith("/")) {
-            logHandledCommand(message.text(), "unknown", "unknown-command-message", chatId, userId);
-            return Optional.of(new SendMessage(chatId, UNKNOWN_COMMAND_MESSAGE));
+            botMetricsService.incrementCommandsTotal(commandType);
+            logHandledCommand(parsedCommand.command(), commandType, responseType, chatId, userId);
+            return Optional.of(new SendMessage(chatId, response));
         }
 
         LOGGER.atDebug()
