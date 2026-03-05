@@ -1,8 +1,7 @@
 package backend.academy.linktracker.bot.service;
 
-import backend.academy.linktracker.bot.service.command.CommandContext;
+import backend.academy.linktracker.bot.service.command.CommandExecutionService;
 import backend.academy.linktracker.bot.service.command.CommandParser;
-import backend.academy.linktracker.bot.service.command.CommandRegistry;
 import backend.academy.linktracker.bot.service.command.StartCommandHandler;
 import backend.academy.linktracker.bot.service.command.UnknownCommandHandler;
 import com.pengrad.telegrambot.model.Update;
@@ -21,18 +20,15 @@ public class BotCommandService {
     static final String UNKNOWN_COMMAND_MESSAGE = UnknownCommandHandler.RESPONSE;
 
     private final CommandParser commandParser;
-    private final CommandRegistry commandRegistry;
-    private final BotMetricsService botMetricsService;
+    private final CommandExecutionService commandExecutionService;
 
-    public BotCommandService(
-            CommandParser commandParser, CommandRegistry commandRegistry, BotMetricsService botMetricsService) {
+    public BotCommandService(CommandParser commandParser, CommandExecutionService commandExecutionService) {
         this.commandParser = commandParser;
-        this.commandRegistry = commandRegistry;
-        this.botMetricsService = botMetricsService;
+        this.commandExecutionService = commandExecutionService;
     }
 
     public List<BotCommandDefinition> supportedCommands() {
-        return commandRegistry.supportedCommands();
+        return commandExecutionService.supportedCommands();
     }
 
     public Optional<SendMessage> createResponse(Update update) {
@@ -52,15 +48,7 @@ public class BotCommandService {
 
         if (commandRequest.isPresent()) {
             var parsedCommand = commandRequest.orElseThrow();
-            var isKnownCommand = commandRegistry.isKnown(parsedCommand.command());
-            var responseType = isKnownCommand ? "known-command-message" : "unknown-command-message";
-            var commandType = isKnownCommand ? "known" : "unknown";
-            var handler = commandRegistry.resolve(parsedCommand.command());
-            var context = new CommandContext(commandRegistry.supportedCommands());
-            var response = handler.handle(parsedCommand, context);
-
-            botMetricsService.incrementCommandsTotal(commandType);
-            logHandledCommand(parsedCommand.command(), commandType, responseType, chatId, userId);
+            var response = commandExecutionService.handle(parsedCommand);
             return Optional.of(new SendMessage(chatId, response));
         }
 
@@ -72,15 +60,5 @@ public class BotCommandService {
                 .addKeyValue("userId", userId)
                 .log("Message ignored");
         return Optional.empty();
-    }
-
-    private void logHandledCommand(String command, String commandType, String responseType, long chatId, Long userId) {
-        LOGGER.atInfo()
-                .addKeyValue("command", command)
-                .addKeyValue("commandType", commandType)
-                .addKeyValue("responseType", responseType)
-                .addKeyValue("chatId", chatId)
-                .addKeyValue("userId", userId)
-                .log("Command handled");
     }
 }

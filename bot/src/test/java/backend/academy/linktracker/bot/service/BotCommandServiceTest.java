@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import backend.academy.linktracker.bot.service.command.CommandExecutionService;
 import backend.academy.linktracker.bot.service.command.CommandParser;
 import backend.academy.linktracker.bot.service.command.CommandRegistry;
 import backend.academy.linktracker.bot.service.command.HelpCommandHandler;
@@ -87,7 +88,8 @@ class BotCommandServiceTest {
         var commandRegistry = new CommandRegistry(
                 List.of(new StartCommandHandler(), new HelpCommandHandler(), new UnknownCommandHandler()));
         var metricsService = new BotMetricsService(meterRegistry);
-        var service = new BotCommandService(new CommandParser(), commandRegistry, metricsService);
+        var executionService = new CommandExecutionService(commandRegistry, metricsService);
+        var service = new BotCommandService(new CommandParser(), executionService);
 
         service.createResponse(updateWithText("/start"));
         service.createResponse(updateWithText("/abracadabra"));
@@ -128,7 +130,8 @@ class BotCommandServiceTest {
     private BotCommandService createService() {
         var commandRegistry = new CommandRegistry(
                 List.of(new StartCommandHandler(), new HelpCommandHandler(), new UnknownCommandHandler()));
-        return new BotCommandService(
-                new CommandParser(), commandRegistry, new BotMetricsService(new SimpleMeterRegistry()));
+        var executionService =
+                new CommandExecutionService(commandRegistry, new BotMetricsService(new SimpleMeterRegistry()));
+        return new BotCommandService(new CommandParser(), executionService);
     }
 }
