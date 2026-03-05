@@ -1,7 +1,7 @@
 package backend.academy.linktracker.bot;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.containing;
+import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
@@ -9,7 +9,9 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import backend.academy.linktracker.bot.service.command.UnknownCommandHandler;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -87,14 +89,13 @@ class UnknownCommandIntegrationTest {
                                 }
                                 """)));
 
-        await().atMost(Duration.ofSeconds(10))
-                .untilAsserted(() -> verify(
-                        1,
-                        postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))
-                                .withRequestBody(containing("chat_id=987654321"))
-                                .withRequestBody(
-                                        containing(
-                                                "%D0%9D%D0%B5%D0%B8%D0%B7%D0%B2%D0%B5%D1%81%D1%82%D0%BD%D0%B0%D1%8F%20%D0%BA%D0%BE%D0%BC%D0%B0%D0%BD%D0%B4%D0%B0"))
-                                .withRequestBody(containing("%2Fhelp"))));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
+                    .getFirst()
+                    .getBodyAsString();
+            assertEquals("987654321", TelegramRequestBodyParser.getFormFieldValue(body, "chat_id"));
+            assertEquals(UnknownCommandHandler.RESPONSE, TelegramRequestBodyParser.getFormFieldValue(body, "text"));
+        });
     }
 }

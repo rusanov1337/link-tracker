@@ -2,6 +2,7 @@ package backend.academy.linktracker.bot;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
+import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
@@ -9,7 +10,9 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import backend.academy.linktracker.bot.service.command.StartCommandHandler;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,12 +36,14 @@ class CommandEdgeCasesIntegrationTest {
         stubMessageUpdateScenario("start-command-mention", updateId, "/start@test_bot");
         stubSendMessageSuccess();
 
-        await().atMost(Duration.ofSeconds(10))
-                .untilAsserted(() -> verify(
-                        1,
-                        postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))
-                                .withRequestBody(containing("chat_id=987654321"))
-                                .withRequestBody(containing("%2Fhelp"))));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
+                    .getFirst()
+                    .getBodyAsString();
+            assertEquals("987654321", TelegramRequestBodyParser.getFormFieldValue(body, "chat_id"));
+            assertEquals(StartCommandHandler.RESPONSE, TelegramRequestBodyParser.getFormFieldValue(body, "text"));
+        });
     }
 
     @Test
@@ -47,12 +52,14 @@ class CommandEdgeCasesIntegrationTest {
         stubMessageUpdateScenario("start-command-payload", updateId, "/start payload");
         stubSendMessageSuccess();
 
-        await().atMost(Duration.ofSeconds(10))
-                .untilAsserted(() -> verify(
-                        1,
-                        postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))
-                                .withRequestBody(containing("chat_id=987654321"))
-                                .withRequestBody(containing("%2Fhelp"))));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
+                    .getFirst()
+                    .getBodyAsString();
+            assertEquals("987654321", TelegramRequestBodyParser.getFormFieldValue(body, "chat_id"));
+            assertEquals(StartCommandHandler.RESPONSE, TelegramRequestBodyParser.getFormFieldValue(body, "text"));
+        });
     }
 
     @Test
