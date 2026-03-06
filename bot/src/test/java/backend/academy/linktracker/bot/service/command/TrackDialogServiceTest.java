@@ -56,6 +56,17 @@ class TrackDialogServiceTest {
     }
 
     @Test
+    void unsupportedHostKeepsDialogOnLinkStep() {
+        var service = new TrackDialogService(scrapperClient, linkInputParser);
+        service.start(100L);
+
+        var response = service.handleUserInput(100L, "https://example.com/page");
+
+        assertEquals(TrackDialogService.LINK_INVALID_RESPONSE, response.orElseThrow());
+        assertTrue(service.isActive(100L));
+    }
+
+    @Test
     void duplicateLinkReturnsExpectedMessageAndFinishesDialog() {
         var service = new TrackDialogService(scrapperClient, linkInputParser);
         when(scrapperClient.addLink(100L, "https://github.com/user/repo", List.of(), List.of()))

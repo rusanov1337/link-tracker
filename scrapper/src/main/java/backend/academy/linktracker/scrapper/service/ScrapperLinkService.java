@@ -4,11 +4,13 @@ import backend.academy.linktracker.scrapper.api.dto.AddLinkRequest;
 import backend.academy.linktracker.scrapper.api.dto.LinkResponse;
 import backend.academy.linktracker.scrapper.api.dto.ListLinksResponse;
 import backend.academy.linktracker.scrapper.api.dto.RemoveLinkRequest;
+import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import backend.academy.linktracker.scrapper.exception.ChatAlreadyExistsException;
 import backend.academy.linktracker.scrapper.exception.ChatNotFoundException;
 import backend.academy.linktracker.scrapper.exception.LinkAlreadyTrackedException;
 import backend.academy.linktracker.scrapper.exception.LinkNotFoundException;
+import backend.academy.linktracker.scrapper.exception.UnsupportedLinkException;
 import backend.academy.linktracker.scrapper.repository.ChatRepository;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
@@ -28,14 +30,17 @@ public class ScrapperLinkService {
     private final ChatRepository chatRepository;
     private final TrackedLinkRepository trackedLinkRepository;
     private final LinkSubscriptionRepository linkSubscriptionRepository;
+    private final List<ExternalLinkClient> externalLinkClients;
 
     public ScrapperLinkService(
             ChatRepository chatRepository,
             TrackedLinkRepository trackedLinkRepository,
-            LinkSubscriptionRepository linkSubscriptionRepository) {
+            LinkSubscriptionRepository linkSubscriptionRepository,
+            List<ExternalLinkClient> externalLinkClients) {
         this.chatRepository = chatRepository;
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
+        this.externalLinkClients = externalLinkClients;
     }
 
     public void registerChat(long chatId) {
@@ -96,6 +101,7 @@ public class ScrapperLinkService {
         ensureChatExists(chatId);
 
         var requestedUrl = URI.create(request.link()).normalize();
+        ensureSupportedLink(requestedUrl);
         var trackedLink = trackedLinkRepository
                 .findByUrl(requestedUrl)
                 .orElseGet(() -> trackedLinkRepository.create(requestedUrl, Instant.now()));
@@ -148,6 +154,13 @@ public class ScrapperLinkService {
     private void ensureChatExists(long chatId) {
         if (!chatRepository.exists(chatId)) {
             throw new ChatNotFoundException(chatId);
+        }
+    }
+
+    private void ensureSupportedLink(URI link) {
+        var supported = externalLinkClients.stream().anyMatch(client -> client.supports(link));
+        if (!supported) {
+            throw new UnsupportedLinkException(link.toString());
         }
     }
 

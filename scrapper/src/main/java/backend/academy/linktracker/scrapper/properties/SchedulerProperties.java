@@ -1,23 +1,25 @@
 package backend.academy.linktracker.scrapper.properties;
 
-import jakarta.validation.constraints.NotEmpty;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.convert.DurationUnit;
 import org.springframework.validation.annotation.Validated;
 
-@ConfigurationProperties(prefix = "app.github")
+@ConfigurationProperties(prefix = "app.scheduler")
 @Validated
 @Getter
 @Setter
 @EqualsAndHashCode
 @NoArgsConstructor
-public class GithubProperties {
+public class SchedulerProperties {
 
-    @NotEmpty
-    private String baseUrl = "https://api.github.com";
+    private boolean enabled = true;
 
-    private String token = "";
+    @DurationUnit(ChronoUnit.MILLIS)
+    private Duration interval = Duration.ofMinutes(1);
 }

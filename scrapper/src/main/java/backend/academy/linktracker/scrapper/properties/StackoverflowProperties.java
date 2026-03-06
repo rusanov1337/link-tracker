@@ -17,8 +17,12 @@ import org.springframework.validation.annotation.Validated;
 public class StackoverflowProperties {
 
     @NotEmpty
-    private String key;
+    private String baseUrl = "https://api.stackexchange.com";
 
     @NotEmpty
-    private String accessToken;
+    private String site = "stackoverflow";
+
+    private String key = "";
+
+    private String accessToken = "";
 }

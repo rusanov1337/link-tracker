@@ -23,4 +23,9 @@ class LinkInputParserTest {
         assertTrue(parser.parseHttpUrl("tbank://github.com/user/repo").isEmpty());
         assertTrue(parser.parseHttpUrl("not-a-url").isEmpty());
     }
+
+    @Test
+    void rejectsUnsupportedHosts() {
+        assertTrue(parser.parseHttpUrl("https://example.com/article").isEmpty());
+    }
 }

@@ -85,6 +85,36 @@ class BotUpdatesApiIntegrationTest {
         assertEquals(400, response.statusCode());
     }
 
+    @Test
+    void missingRequiredFieldsReturnsBadRequest() throws Exception {
+        var invalidBody = """
+                {
+                  "id": 1,
+                  "url": "https://github.com/user/repo"
+                }
+                """;
+
+        var response = sendUpdatesRequest(invalidBody);
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void malformedJsonReturnsBadRequest() throws Exception {
+        var invalidJson = """
+                {
+                  "id": 1,
+                  "url": "https://github.com/user/repo",
+                  "description": "oops",
+                  "tgChatIds": [1, 2
+                }
+                """;
+
+        var response = sendUpdatesRequest(invalidJson);
+
+        assertEquals(400, response.statusCode());
+    }
+
     private HttpResponse<String> sendUpdatesRequest(String jsonBody) throws Exception {
         var request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/updates"))

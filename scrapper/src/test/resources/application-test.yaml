@@ -1,0 +1,13 @@
+app:
+  scheduler:
+    enabled: false
+  bot:
+    base-url: ${wiremock.server.baseUrl}
+  stackoverflow:
+    base-url: ${wiremock.server.baseUrl}
+    site: stackoverflow
+    key: ""
+    access-token: ""
+  github:
+    base-url: ${wiremock.server.baseUrl}
+    token: ""

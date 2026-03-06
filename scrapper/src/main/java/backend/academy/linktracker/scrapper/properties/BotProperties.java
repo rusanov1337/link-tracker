@@ -5,19 +5,19 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.validator.constraints.URL;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
-@ConfigurationProperties(prefix = "app.github")
+@ConfigurationProperties(prefix = "app.bot")
 @Validated
 @Getter
 @Setter
 @EqualsAndHashCode
 @NoArgsConstructor
-public class GithubProperties {
+public class BotProperties {
 
     @NotEmpty
-    private String baseUrl = "https://api.github.com";
-
-    private String token = "";
+    @URL
+    private String baseUrl = "http://localhost:8080";
 }

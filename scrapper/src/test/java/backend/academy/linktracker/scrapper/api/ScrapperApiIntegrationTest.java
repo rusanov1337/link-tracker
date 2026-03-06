@@ -17,7 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.annotation.DirtiesContext;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "app.scheduler.enabled=false")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ScrapperApiIntegrationTest {
 
@@ -49,6 +49,15 @@ class ScrapperApiIntegrationTest {
     }
 
     @Test
+    void duplicateChatRegistrationReturnsConflict() throws Exception {
+        registerChat(1L);
+
+        var duplicateResponse = send("POST", "/tg-chat/1", null, Map.of());
+        assertEquals(409, duplicateResponse.statusCode());
+        assertBodyContains(duplicateResponse, "\"code\"\\s*:\\s*\"409\"");
+    }
+
+    @Test
     void addThenDeleteLinkRemovesItFromList() throws Exception {
         registerChat(1L);
         assertEquals(200, addLink(1L, "https://stackoverflow.com/questions/123").statusCode());
@@ -60,6 +69,16 @@ class ScrapperApiIntegrationTest {
         assertEquals(200, getResponse.statusCode());
         assertBodyContains(getResponse, "\"size\"\\s*:\\s*0");
         assertBodyContains(getResponse, "\"links\"\\s*:\\s*\\[\\s*]");
+    }
+
+    @Test
+    void duplicateLinkTrackingReturnsConflict() throws Exception {
+        registerChat(1L);
+        assertEquals(200, addLink(1L, "https://github.com/user/repo").statusCode());
+
+        var duplicateResponse = addLink(1L, "https://github.com/user/repo");
+        assertEquals(409, duplicateResponse.statusCode());
+        assertBodyContains(duplicateResponse, "\"code\"\\s*:\\s*\"409\"");
     }
 
     @Test
@@ -78,10 +97,50 @@ class ScrapperApiIntegrationTest {
     }
 
     @Test
+    void removingNonTrackedLinkReturnsNotFound() throws Exception {
+        registerChat(1L);
+
+        var removeResponse = removeLink(1L, "https://github.com/user/unknown");
+        assertEquals(404, removeResponse.statusCode());
+        assertBodyContains(removeResponse, "\"code\"\\s*:\\s*\"404\"");
+    }
+
+    @Test
     void addingLinkForUnknownChatReturnsError() throws Exception {
         var response = addLink(2L, "https://github.com/ghost/repo");
         assertEquals(404, response.statusCode());
         assertBodyContains(response, "\"code\"\\s*:\\s*\"404\"");
+    }
+
+    @Test
+    void addingLinkWithInvalidBodyReturnsBadRequest() throws Exception {
+        registerChat(1L);
+
+        var invalidBody = """
+                {
+                  "link": "not-url",
+                  "tags": ["work"]
+                }
+                """;
+        var response = send("POST", "/links", invalidBody, Map.of(TG_CHAT_HEADER, "1"));
+        assertEquals(400, response.statusCode());
+        assertBodyContains(response, "\"code\"\\s*:\\s*\"400\"");
+    }
+
+    @Test
+    void addingLinkWithUnsupportedHostReturnsBadRequest() throws Exception {
+        registerChat(1L);
+
+        var response = addLink(1L, "https://example.com/page");
+        assertEquals(400, response.statusCode());
+        assertBodyContains(response, "\"code\"\\s*:\\s*\"400\"");
+    }
+
+    @Test
+    void missingChatHeaderReturnsBadRequest() throws Exception {
+        var response = send("GET", "/links", null, Map.of());
+        assertEquals(400, response.statusCode());
+        assertBodyContains(response, "\"code\"\\s*:\\s*\"400\"");
     }
 
     @Test

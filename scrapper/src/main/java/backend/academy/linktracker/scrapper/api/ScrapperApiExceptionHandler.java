@@ -5,6 +5,7 @@ import backend.academy.linktracker.scrapper.exception.ChatAlreadyExistsException
 import backend.academy.linktracker.scrapper.exception.ChatNotFoundException;
 import backend.academy.linktracker.scrapper.exception.LinkAlreadyTrackedException;
 import backend.academy.linktracker.scrapper.exception.LinkNotFoundException;
+import backend.academy.linktracker.scrapper.exception.UnsupportedLinkException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import org.slf4j.Logger;
@@ -42,6 +43,11 @@ public class ScrapperApiExceptionHandler {
     @ExceptionHandler(LinkNotFoundException.class)
     ResponseEntity<ApiErrorResponse> handleLinkNotFound(LinkNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), exception);
+    }
+
+    @ExceptionHandler(UnsupportedLinkException.class)
+    ResponseEntity<ApiErrorResponse> handleUnsupportedLink(UnsupportedLinkException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
