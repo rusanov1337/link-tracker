@@ -5,11 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import backend.academy.linktracker.bot.client.scrapper.ScrapperClient;
 import backend.academy.linktracker.bot.service.command.CommandExecutionService;
 import backend.academy.linktracker.bot.service.command.CommandParser;
 import backend.academy.linktracker.bot.service.command.CommandRegistry;
 import backend.academy.linktracker.bot.service.command.HelpCommandHandler;
+import backend.academy.linktracker.bot.service.command.LinkInputParser;
 import backend.academy.linktracker.bot.service.command.StartCommandHandler;
+import backend.academy.linktracker.bot.service.command.TrackDialogService;
 import backend.academy.linktracker.bot.service.command.UnknownCommandHandler;
 import com.pengrad.telegrambot.model.Chat;
 import com.pengrad.telegrambot.model.Message;
@@ -89,7 +92,7 @@ class BotCommandServiceTest {
                 List.of(new StartCommandHandler(), new HelpCommandHandler(), new UnknownCommandHandler()));
         var metricsService = new BotMetricsService(meterRegistry);
         var executionService = new CommandExecutionService(commandRegistry, metricsService);
-        var service = new BotCommandService(new CommandParser(), executionService);
+        var service = new BotCommandService(new CommandParser(), executionService, trackDialogService());
 
         service.createResponse(updateWithText("/start"));
         service.createResponse(updateWithText("/abracadabra"));
@@ -132,6 +135,10 @@ class BotCommandServiceTest {
                 List.of(new StartCommandHandler(), new HelpCommandHandler(), new UnknownCommandHandler()));
         var executionService =
                 new CommandExecutionService(commandRegistry, new BotMetricsService(new SimpleMeterRegistry()));
-        return new BotCommandService(new CommandParser(), executionService);
+        return new BotCommandService(new CommandParser(), executionService, trackDialogService());
+    }
+
+    private TrackDialogService trackDialogService() {
+        return new TrackDialogService(mock(ScrapperClient.class), new LinkInputParser());
     }
 }

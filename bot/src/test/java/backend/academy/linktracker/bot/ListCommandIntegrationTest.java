@@ -2,20 +2,17 @@ package backend.academy.linktracker.bot;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import backend.academy.linktracker.bot.service.command.HelpCommandHandler;
-import backend.academy.linktracker.bot.service.command.ListCommandHandler;
-import backend.academy.linktracker.bot.service.command.StartCommandHandler;
-import backend.academy.linktracker.bot.service.command.TrackCommandHandler;
-import backend.academy.linktracker.bot.service.command.UntrackCommandHandler;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,12 +28,12 @@ import org.wiremock.spring.EnableWireMock;
 @ActiveProfiles("test")
 @EnableWireMock
 @TestPropertySource(properties = "app.telegram.polling-enabled=true")
-class HelpCommandIntegrationTest {
+class ListCommandIntegrationTest {
 
     @Test
-    void helpCommandReturnsSupportedCommandsList() {
+    void listCommandReturnsTrackedLinks() {
         stubFor(post(urlMatching("/bot[^/]+/getUpdates"))
-                .inScenario("help-command")
+                .inScenario("list-command")
                 .whenScenarioStateIs(STARTED)
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -46,9 +43,9 @@ class HelpCommandIntegrationTest {
                                   "ok": true,
                                   "result": [
                                     {
-                                      "update_id": 123457,
+                                      "update_id": 223111,
                                       "message": {
-                                        "message_id": 2,
+                                        "message_id": 21,
                                         "from": {
                                           "id": 123456789,
                                           "is_bot": false,
@@ -58,8 +55,8 @@ class HelpCommandIntegrationTest {
                                           "id": 987654321,
                                           "type": "private"
                                         },
-                                        "date": 1234567891,
-                                        "text": "/help"
+                                        "date": 1234567890,
+                                        "text": "/list"
                                       }
                                     }
                                   ]
@@ -68,7 +65,7 @@ class HelpCommandIntegrationTest {
                 .willSetStateTo("consumed"));
 
         stubFor(post(urlMatching("/bot[^/]+/getUpdates"))
-                .inScenario("help-command")
+                .inScenario("list-command")
                 .whenScenarioStateIs("consumed")
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -80,6 +77,32 @@ class HelpCommandIntegrationTest {
                                 }
                                 """)));
 
+        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
+
+        stubFor(get(urlEqualTo("/links"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .withBody("""
+                                {
+                                  "links": [
+                                    {
+                                      "id": 1,
+                                      "url": "https://github.com/user/repo",
+                                      "tags": ["work"],
+                                      "filters": []
+                                    },
+                                    {
+                                      "id": 2,
+                                      "url": "https://stackoverflow.com/questions/42",
+                                      "tags": ["study"],
+                                      "filters": []
+                                    }
+                                  ],
+                                  "size": 2
+                                }
+                                """)));
+
         stubFor(post(urlMatching("/bot[^/]+/sendMessage"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -88,7 +111,7 @@ class HelpCommandIntegrationTest {
                                 {
                                   "ok": true,
                                   "result": {
-                                    "message_id": 3
+                                    "message_id": 22
                                   }
                                 }
                                 """)));
@@ -99,31 +122,13 @@ class HelpCommandIntegrationTest {
                     .getFirst()
                     .getBodyAsString();
             assertEquals("987654321", TelegramRequestBodyParser.getFormFieldValue(body, "chat_id"));
-            assertEquals(expectedHelpMessage(), TelegramRequestBodyParser.getFormFieldValue(body, "text"));
+            assertEquals(
+                    "Отслеживаемые ссылки:"
+                            + System.lineSeparator()
+                            + "1. https://github.com/user/repo"
+                            + System.lineSeparator()
+                            + "2. https://stackoverflow.com/questions/42",
+                    TelegramRequestBodyParser.getFormFieldValue(body, "text"));
         });
-    }
-
-    private String expectedHelpMessage() {
-        return "Доступные команды:"
-                + System.lineSeparator()
-                + StartCommandHandler.COMMAND
-                + " - "
-                + StartCommandHandler.DESCRIPTION
-                + System.lineSeparator()
-                + HelpCommandHandler.COMMAND
-                + " - "
-                + HelpCommandHandler.DESCRIPTION
-                + System.lineSeparator()
-                + TrackCommandHandler.COMMAND
-                + " - "
-                + TrackCommandHandler.DESCRIPTION
-                + System.lineSeparator()
-                + ListCommandHandler.COMMAND
-                + " - "
-                + ListCommandHandler.DESCRIPTION
-                + System.lineSeparator()
-                + UntrackCommandHandler.COMMAND
-                + " - "
-                + UntrackCommandHandler.DESCRIPTION;
     }
 }

@@ -3,6 +3,8 @@ package backend.academy.linktracker.bot.service;
 import backend.academy.linktracker.bot.service.command.CommandExecutionService;
 import backend.academy.linktracker.bot.service.command.CommandParser;
 import backend.academy.linktracker.bot.service.command.StartCommandHandler;
+import backend.academy.linktracker.bot.service.command.TrackCommandHandler;
+import backend.academy.linktracker.bot.service.command.TrackDialogService;
 import backend.academy.linktracker.bot.service.command.UnknownCommandHandler;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.request.SendMessage;
@@ -21,10 +23,15 @@ public class BotCommandService {
 
     private final CommandParser commandParser;
     private final CommandExecutionService commandExecutionService;
+    private final TrackDialogService trackDialogService;
 
-    public BotCommandService(CommandParser commandParser, CommandExecutionService commandExecutionService) {
+    public BotCommandService(
+            CommandParser commandParser,
+            CommandExecutionService commandExecutionService,
+            TrackDialogService trackDialogService) {
         this.commandParser = commandParser;
         this.commandExecutionService = commandExecutionService;
+        this.trackDialogService = trackDialogService;
     }
 
     public List<BotCommandDefinition> supportedCommands() {
@@ -44,16 +51,33 @@ public class BotCommandService {
 
         var chatId = message.chat().id().longValue();
         Long userId = message.from() == null ? null : message.from().id();
-        var commandRequest = commandParser.parse(message.text(), chatId, userId);
+        var messageText = message.text();
+        var commandRequest = commandParser.parse(messageText, chatId, userId);
 
         if (commandRequest.isPresent()) {
             var parsedCommand = commandRequest.orElseThrow();
+            if (TrackDialogService.CANCEL_COMMAND.equals(parsedCommand.command())) {
+                var cancelResponse = trackDialogService.cancel(chatId);
+                return Optional.of(new SendMessage(chatId, cancelResponse));
+            }
+
+            if (trackDialogService.isActive(chatId) && !TrackCommandHandler.COMMAND.equals(parsedCommand.command())) {
+                trackDialogService.cancel(chatId);
+            }
+
             var response = commandExecutionService.handle(parsedCommand);
             return Optional.of(new SendMessage(chatId, response));
         }
 
+        if (trackDialogService.isActive(chatId)) {
+            var response = trackDialogService.handleUserInput(chatId, messageText);
+            if (response.isPresent()) {
+                return Optional.of(new SendMessage(chatId, response.orElseThrow()));
+            }
+        }
+
         LOGGER.atDebug()
-                .addKeyValue("command", message.text())
+                .addKeyValue("command", messageText)
                 .addKeyValue("commandType", "not-command")
                 .addKeyValue("responseType", "none")
                 .addKeyValue("chatId", chatId)
