@@ -4,12 +4,14 @@ import backend.academy.linktracker.scrapper.client.bot.dto.LinkUpdateRequest;
 import java.net.URI;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
+@ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "http", matchIfMissing = true)
 public class HttpBotUpdatesClient implements BotUpdatesClient {
 
     private final RestClient restClient;

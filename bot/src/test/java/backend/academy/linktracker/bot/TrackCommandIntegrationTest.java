@@ -12,6 +12,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import backend.academy.linktracker.bot.service.command.TrackDialogService;
 import java.time.Duration;
@@ -87,6 +88,27 @@ class TrackCommandIntegrationTest {
             assertEquals(
                     TrackDialogService.CANCELLED_RESPONSE,
                     TelegramRequestBodyParser.getFormFieldValue(requests.get(1).getBodyAsString(), "text"));
+        });
+    }
+
+    @Test
+    void anotherCommandCancelsTrackDialogAndStopsFlow() {
+        stubDialogUpdates(
+                "track-interrupted-by-command", List.of("/track", "/help", "https://github.com/user/repo"), 332001);
+        stubSendMessageSuccess();
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            var requests = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+
+            assertEquals(
+                    TrackDialogService.START_PROMPT,
+                    TelegramRequestBodyParser.getFormFieldValue(requests.get(0).getBodyAsString(), "text"));
+            assertTrue(
+                    TelegramRequestBodyParser.getFormFieldValue(requests.get(1).getBodyAsString(), "text")
+                            .startsWith("Доступные команды:"));
+            verify(0, postRequestedFor(urlEqualTo("/links")));
+            verify(0, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
         });
     }
 

@@ -6,6 +6,10 @@ spring:
     name: bot
 
 app:
+  grpc:
+    server:
+      enabled: ${BOT_GRPC_SERVER_ENABLED:false}
+      port: ${BOT_GRPC_PORT:8090}
   telegram:
     url: https://api.telegram.org/bot
     token: ${TELEGRAM_TOKEN} # Use env variable. DO NOT KEEP TOKEN HERE
@@ -14,3 +18,7 @@ app:
     set-my-commands-enabled: true
   scrapper:
     base-url: ${SCRAPPER_BASE_URL:http://localhost:8081}
+    transport: ${SCRAPPER_TRANSPORT:http}
+    grpc:
+      host: ${SCRAPPER_GRPC_HOST:localhost}
+      port: ${SCRAPPER_GRPC_PORT:8091}

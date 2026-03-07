@@ -6,6 +6,7 @@ import backend.academy.linktracker.bot.client.scrapper.dto.ListLinksResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.RemoveLinkRequest;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
+@ConditionalOnProperty(prefix = "app.scrapper", name = "transport", havingValue = "http", matchIfMissing = true)
 public class HttpScrapperClient implements ScrapperClient {
 
     private final RestClient restClient;

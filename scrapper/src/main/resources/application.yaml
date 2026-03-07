@@ -6,8 +6,16 @@ spring:
     name: scrapper
 
 app:
+  grpc:
+    server:
+      enabled: ${SCRAPPER_GRPC_SERVER_ENABLED:false}
+      port: ${SCRAPPER_GRPC_PORT:8091}
   bot:
     base-url: ${BOT_BASE_URL:http://localhost:8080}
+    transport: ${BOT_TRANSPORT:http}
+    grpc:
+      host: ${BOT_GRPC_HOST:localhost}
+      port: ${BOT_GRPC_PORT:8090}
   scheduler:
     enabled: true
     interval: 60000
