@@ -1,9 +1,9 @@
 package backend.academy.linktracker.bot.service.command;
 
 import backend.academy.linktracker.bot.service.BotCommandDefinition;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -15,48 +15,29 @@ public final class CommandRegistry {
     private final CommandHandler fallbackHandler;
     private final List<BotCommandDefinition> supportedCommands;
 
-    public CommandRegistry(List<CommandHandler> handlers) {
-        this.fallbackHandler = handlers.stream()
-                .filter(CommandHandler::isFallback)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Fallback command handler is not configured"));
-
-        var sortedHandlers = sortHandlers(handlers);
+    public CommandRegistry(List<CommandHandler> handlers, UnknownCommandHandler fallbackHandler) {
+        this.fallbackHandler = fallbackHandler;
+        var sortedHandlers = handlers.stream()
+                .filter(handler -> handler != fallbackHandler)
+                .sorted((left, right) -> left.command().compareTo(right.command()))
+                .toList();
 
         this.handlersByCommand = sortedHandlers.stream()
-                .filter(handler -> !handler.isFallback())
-                .collect(Collectors.toMap(
-                        CommandHandler::command,
-                        Function.identity(),
-                        (left, right) -> {
-                            throw new IllegalStateException("Duplicate command handler: " + left.command());
-                        },
-                        LinkedHashMap::new));
+                .collect(Collectors.toMap(CommandHandler::command, Function.identity(), (left, right) -> {
+                    throw new IllegalStateException("Duplicate command handler: " + left.command());
+                }));
 
-        this.supportedCommands = handlersByCommand.values().stream()
+        this.supportedCommands = sortedHandlers.stream()
                 .map(handler -> new BotCommandDefinition(handler.command(), handler.description()))
                 .toList();
     }
 
-    private List<CommandHandler> sortHandlers(List<CommandHandler> handlers) {
-        return handlers.stream()
-                .sorted((left, right) -> {
-                    int orderCompare = Integer.compare(left.order(), right.order());
-                    if (orderCompare != 0) {
-                        return orderCompare;
-                    }
-
-                    return left.command().compareTo(right.command());
-                })
-                .toList();
+    public Optional<CommandHandler> find(String command) {
+        return Optional.ofNullable(handlersByCommand.get(command));
     }
 
-    public CommandHandler resolve(String command) {
-        return handlersByCommand.getOrDefault(command, fallbackHandler);
-    }
-
-    public boolean isKnown(String command) {
-        return handlersByCommand.containsKey(command);
+    public CommandHandler fallback() {
+        return fallbackHandler;
     }
 
     public List<BotCommandDefinition> supportedCommands() {

@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.client.scrapper;
 
 import backend.academy.linktracker.bot.client.scrapper.dto.AddLinkRequest;
+import backend.academy.linktracker.bot.client.scrapper.dto.ApiErrorResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.LinkResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.ListLinksResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.RemoveLinkRequest;
@@ -47,7 +48,7 @@ public class HttpScrapperClient implements ScrapperClient {
                     .header("Tg-Chat-Id", String.valueOf(chatId))
                     .retrieve()
                     .body(ListLinksResponse.class);
-            return response == null ? new ListLinksResponse(java.util.List.of(), 0) : response;
+            return response == null ? new ListLinksResponse(List.of(), 0) : response;
         } catch (RestClientResponseException exception) {
             throw toScrapperClientException(exception);
         } catch (RestClientException exception) {
@@ -90,9 +91,11 @@ public class HttpScrapperClient implements ScrapperClient {
     }
 
     private ScrapperClientException toScrapperClientException(RestClientResponseException exception) {
-        return new ScrapperClientException(
-                exception.getStatusCode().value(),
-                "Scrapper responded with status " + exception.getStatusCode().value(),
-                exception);
+        var errorResponse = exception.getResponseBodyAs(ApiErrorResponse.class);
+        var description = errorResponse != null && errorResponse.description() != null
+                ? errorResponse.description()
+                : "Scrapper responded with status " + exception.getStatusCode().value();
+        var errorCode = errorResponse != null ? errorResponse.exceptionName() : null;
+        return new ScrapperClientException(exception.getStatusCode().value(), errorCode, description, exception);
     }
 }

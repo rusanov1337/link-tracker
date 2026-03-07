@@ -15,12 +15,16 @@ import backend.academy.linktracker.scrapper.exception.LinkAlreadyTrackedExceptio
 import backend.academy.linktracker.scrapper.exception.LinkNotFoundException;
 import backend.academy.linktracker.scrapper.exception.UnsupportedLinkException;
 import backend.academy.linktracker.scrapper.service.ScrapperLinkService;
+import io.grpc.Metadata;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImplBase {
+
+    private static final Metadata.Key<String> ERROR_CODE_METADATA_KEY =
+            Metadata.Key.of("error-code", Metadata.ASCII_STRING_MARSHALLER);
 
     private final ScrapperLinkService scrapperLinkService;
 
@@ -110,24 +114,27 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
             responseObserver.onNext(result);
             responseObserver.onCompleted();
         } catch (IllegalArgumentException exception) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(exception.getMessage())
-                    .asRuntimeException());
+            responseObserver.onError(
+                    grpcError(Status.INVALID_ARGUMENT, exception.getClass().getSimpleName(), exception));
         } catch (ChatNotFoundException | LinkNotFoundException exception) {
             responseObserver.onError(
-                    Status.NOT_FOUND.withDescription(exception.getMessage()).asRuntimeException());
+                    grpcError(Status.NOT_FOUND, exception.getClass().getSimpleName(), exception));
         } catch (ChatAlreadyExistsException | LinkAlreadyTrackedException exception) {
-            responseObserver.onError(Status.ALREADY_EXISTS
-                    .withDescription(exception.getMessage())
-                    .asRuntimeException());
+            responseObserver.onError(
+                    grpcError(Status.ALREADY_EXISTS, exception.getClass().getSimpleName(), exception));
         } catch (UnsupportedLinkException exception) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(exception.getMessage())
-                    .asRuntimeException());
+            responseObserver.onError(
+                    grpcError(Status.INVALID_ARGUMENT, exception.getClass().getSimpleName(), exception));
         } catch (RuntimeException exception) {
             responseObserver.onError(
                     Status.INTERNAL.withDescription("Scrapper gRPC error").asRuntimeException());
         }
+    }
+
+    private RuntimeException grpcError(Status status, String errorCode, RuntimeException exception) {
+        var metadata = new Metadata();
+        metadata.put(ERROR_CODE_METADATA_KEY, errorCode);
+        return status.withDescription(exception.getMessage()).asRuntimeException(metadata);
     }
 
     @FunctionalInterface

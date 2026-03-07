@@ -1,5 +1,7 @@
 package backend.academy.linktracker.bot.service.command;
 
+import backend.academy.linktracker.bot.service.BotCommandDefinition;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -25,12 +27,7 @@ public class TrackCommandHandler implements CommandHandler {
     }
 
     @Override
-    public String handle(CommandRequest request, CommandContext context) {
+    public String handle(CommandRequest request, List<BotCommandDefinition> supportedCommands) {
         return trackDialogService.start(request.chatId());
-    }
-
-    @Override
-    public int order() {
-        return 25;
     }
 }

@@ -3,6 +3,9 @@ app:
     url: ${wiremock.server.baseUrl}/bot
     token: test-token
     update-listener-sleep: 1s
+    max-send-attempts: 3
+    delivery-retry-enabled: false
+    delivery-retry-interval: 1m
     debug: true
     polling-enabled: false
     set-my-commands-enabled: false

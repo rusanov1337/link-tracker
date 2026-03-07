@@ -78,8 +78,6 @@ class UntrackCommandIntegrationTest {
                                 }
                                 """)));
 
-        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
-
         stubFor(WireMock.delete(urlEqualTo("/links"))
                 .withHeader("Tg-Chat-Id", containing("987654321"))
                 .withRequestBody(containing("\"link\":\"https://github.com/user/repo\""))
@@ -110,6 +108,7 @@ class UntrackCommandIntegrationTest {
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            verify(0, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
             var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
                     .getFirst()
                     .getBodyAsString();

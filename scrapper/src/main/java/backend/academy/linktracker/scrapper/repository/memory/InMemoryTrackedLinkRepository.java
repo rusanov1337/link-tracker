@@ -4,8 +4,10 @@ import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import java.net.URI;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -21,15 +23,15 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public synchronized TrackedLink create(URI url, Instant now) {
-        var normalizedUrl = url.normalize();
-        var key = urlKey(normalizedUrl);
+        var canonicalUrl = canonicalize(url);
+        var key = urlKey(canonicalUrl);
         var existingId = idsByUrl.get(key);
         if (existingId != null) {
             return linksById.get(existingId);
         }
 
         var id = idSequence.incrementAndGet();
-        var trackedLink = TrackedLink.create(id, normalizedUrl, now);
+        var trackedLink = TrackedLink.create(id, canonicalUrl, now);
         idsByUrl.put(key, id);
         linksById.put(id, trackedLink);
         return trackedLink;
@@ -42,7 +44,7 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public Optional<TrackedLink> findByUrl(URI url) {
-        var id = idsByUrl.get(urlKey(url.normalize()));
+        var id = idsByUrl.get(urlKey(canonicalize(url)));
         if (id == null) {
             return Optional.empty();
         }
@@ -91,5 +93,67 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
 
     private String urlKey(URI url) {
         return url.toString();
+    }
+
+    private URI canonicalize(URI url) {
+        var normalized = url.normalize();
+        var scheme = normalized.getScheme();
+        var host = normalized.getHost();
+        if (scheme == null || host == null) {
+            return normalized;
+        }
+
+        var normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+        var normalizedHost = host.toLowerCase(Locale.ROOT);
+        var segments = pathSegments(normalized);
+        var canonicalPath = canonicalPath(normalizedHost, segments)
+                .orElseGet(() -> normalized.getRawPath() == null ? "" : normalized.getRawPath());
+
+        return URI.create(buildAuthority(normalizedScheme, normalized, normalizedHost) + canonicalPath);
+    }
+
+    private String buildAuthority(String scheme, URI normalized, String host) {
+        var rawAuthority = new StringBuilder(scheme).append("://");
+        if (normalized.getRawUserInfo() != null) {
+            rawAuthority.append(normalized.getRawUserInfo()).append('@');
+        }
+        rawAuthority.append(host);
+        if (normalized.getPort() >= 0) {
+            rawAuthority.append(':').append(normalized.getPort());
+        }
+        return rawAuthority.toString();
+    }
+
+    private Optional<String> canonicalPath(String host, List<String> segments) {
+        return switch (host) {
+            case "github.com" ->
+                segments.size() == 2 ? Optional.of("/" + segments.get(0) + "/" + segments.get(1)) : Optional.empty();
+            case "stackoverflow.com" -> canonicalStackoverflowPath(segments);
+            default -> Optional.empty();
+        };
+    }
+
+    private Optional<String> canonicalStackoverflowPath(List<String> segments) {
+        if (segments.size() < 2) {
+            return Optional.empty();
+        }
+        if ("questions".equals(segments.getFirst()) && isNumeric(segments.get(1))) {
+            return Optional.of("/questions/" + segments.get(1));
+        }
+        if ("q".equals(segments.getFirst()) && isNumeric(segments.get(1))) {
+            return Optional.of("/questions/" + segments.get(1));
+        }
+        return Optional.empty();
+    }
+
+    private boolean isNumeric(String value) {
+        return value.chars().allMatch(Character::isDigit);
+    }
+
+    private List<String> pathSegments(URI uri) {
+        return Arrays.stream(uri.getPath().split("/"))
+                .map(String::strip)
+                .filter(segment -> !segment.isEmpty())
+                .toList();
     }
 }

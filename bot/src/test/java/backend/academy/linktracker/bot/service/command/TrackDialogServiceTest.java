@@ -40,7 +40,6 @@ class TrackDialogServiceTest {
                 service.handleUserInput(100L, "-").orElseThrow());
         assertTrue(service.handleUserInput(100L, "anything").isEmpty());
 
-        verify(scrapperClient).ensureChatRegistered(100L);
         verify(scrapperClient).addLink(100L, "https://github.com/user/repo", List.of("work"), List.of());
     }
 
@@ -70,7 +69,7 @@ class TrackDialogServiceTest {
     void duplicateLinkReturnsExpectedMessageAndFinishesDialog() {
         var service = new TrackDialogService(scrapperClient, linkInputParser);
         when(scrapperClient.addLink(100L, "https://github.com/user/repo", List.of(), List.of()))
-                .thenThrow(new ScrapperClientException(409, "duplicate"));
+                .thenThrow(new ScrapperClientException(409, ScrapperClientException.LINK_ALREADY_TRACKED, "duplicate"));
         service.start(100L);
         service.handleUserInput(100L, "https://github.com/user/repo");
         service.handleUserInput(100L, "-");
@@ -78,6 +77,21 @@ class TrackDialogServiceTest {
         var response = service.handleUserInput(100L, "-");
 
         assertEquals(TrackDialogService.DUPLICATE_RESPONSE, response.orElseThrow());
+        assertTrue(service.handleUserInput(100L, "after").isEmpty());
+    }
+
+    @Test
+    void unknownChatReturnsStartRequiredMessageAndFinishesDialog() {
+        var service = new TrackDialogService(scrapperClient, linkInputParser);
+        when(scrapperClient.addLink(100L, "https://github.com/user/repo", List.of(), List.of()))
+                .thenThrow(new ScrapperClientException(404, ScrapperClientException.CHAT_NOT_FOUND, "chat not found"));
+        service.start(100L);
+        service.handleUserInput(100L, "https://github.com/user/repo");
+        service.handleUserInput(100L, "-");
+
+        var response = service.handleUserInput(100L, "-");
+
+        assertEquals(TrackDialogService.START_REQUIRED_RESPONSE, response.orElseThrow());
         assertTrue(service.handleUserInput(100L, "after").isEmpty());
     }
 }

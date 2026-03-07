@@ -35,7 +35,11 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
     @Override
     public boolean supports(URI url) {
         var host = url.getHost();
-        return host != null && host.equalsIgnoreCase("stackoverflow.com");
+        if (host == null || !host.equalsIgnoreCase("stackoverflow.com")) {
+            return false;
+        }
+
+        return extractQuestionId(url).isPresent();
     }
 
     @Override

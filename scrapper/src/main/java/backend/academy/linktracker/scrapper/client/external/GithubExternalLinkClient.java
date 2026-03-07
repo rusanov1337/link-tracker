@@ -33,7 +33,11 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
     @Override
     public boolean supports(URI url) {
         var host = url.getHost();
-        return host != null && host.equalsIgnoreCase("github.com");
+        if (host == null || !host.equalsIgnoreCase("github.com")) {
+            return false;
+        }
+
+        return extractOwnerAndRepo(url).isPresent();
     }
 
     @Override
@@ -73,7 +77,7 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
                 .map(String::strip)
                 .filter(segment -> !segment.isEmpty())
                 .toList();
-        if (segments.size() < 2) {
+        if (segments.size() != 2) {
             return Optional.empty();
         }
 

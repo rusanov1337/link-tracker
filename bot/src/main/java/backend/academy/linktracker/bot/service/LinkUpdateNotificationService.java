@@ -3,64 +3,105 @@ package backend.academy.linktracker.bot.service;
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.request.SendMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.ArrayList;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class LinkUpdateNotificationService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(LinkUpdateNotificationService.class);
-
     private final TelegramBot telegramBot;
-
-    public LinkUpdateNotificationService(TelegramBot telegramBot) {
-        this.telegramBot = telegramBot;
-    }
+    private final PendingLinkUpdateStore pendingLinkUpdateStore;
 
     public void process(LinkUpdate linkUpdate) {
-        var text = buildMessage(linkUpdate);
+        var pendingUpdates = new ArrayList<PendingLinkUpdate>();
         for (var chatId : linkUpdate.tgChatIds()) {
-            sendUpdate(chatId, text, linkUpdate.id(), linkUpdate.url());
+            var pendingUpdate =
+                    new PendingLinkUpdate(linkUpdate.id(), chatId, linkUpdate.url(), linkUpdate.description());
+            if (!sendUpdate(pendingUpdate)) {
+                pendingUpdates.add(pendingUpdate);
+            }
+        }
+
+        if (!pendingUpdates.isEmpty()) {
+            pendingLinkUpdateStore.saveAll(pendingUpdates);
+            log.atWarn()
+                    .addKeyValue("operation", "queuePendingLinkUpdates")
+                    .addKeyValue("pendingUpdatesCount", pendingUpdates.size())
+                    .log("Link updates queued for retry");
         }
     }
 
-    private String buildMessage(LinkUpdate linkUpdate) {
-        return "Обновление по ссылке: " + linkUpdate.url() + System.lineSeparator() + linkUpdate.description();
+    public void retryPendingUpdates() {
+        var pendingUpdates = pendingLinkUpdateStore.findAll();
+        for (var pendingUpdate : pendingUpdates) {
+            if (sendUpdate(pendingUpdate)) {
+                pendingLinkUpdateStore.remove(pendingUpdate);
+            }
+        }
     }
 
-    private void sendUpdate(long chatId, String text, long updateId, String url) {
+    private String buildMessage(PendingLinkUpdate pendingUpdate) {
+        return "Обновление по ссылке: " + pendingUpdate.url() + System.lineSeparator() + pendingUpdate.description();
+    }
+
+    @SuppressFBWarnings(
+            value = "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
+            justification =
+                    "TelegramBot.execute may return null on invalid HTTP responses despite the static signature.")
+    private boolean sendUpdate(PendingLinkUpdate pendingUpdate) {
+        var text = buildMessage(pendingUpdate);
         try {
-            var response = telegramBot.execute(new SendMessage(chatId, text));
+            var response = telegramBot.execute(new SendMessage(pendingUpdate.chatId(), text));
+            if (response == null) {
+                logNullResponse(pendingUpdate);
+                return false;
+            }
             if (response.isOk()) {
-                LOGGER.atInfo()
+                log.atInfo()
                         .addKeyValue("operation", "sendUpdateNotification")
-                        .addKeyValue("chatId", chatId)
-                        .addKeyValue("updateId", updateId)
-                        .addKeyValue("url", url)
+                        .addKeyValue("chatId", pendingUpdate.chatId())
+                        .addKeyValue("updateId", pendingUpdate.updateId())
+                        .addKeyValue("url", pendingUpdate.url())
                         .addKeyValue("success", true)
                         .log("Update notification sent");
-                return;
+                return true;
             }
 
-            LOGGER.atWarn()
+            log.atWarn()
                     .addKeyValue("operation", "sendUpdateNotification")
-                    .addKeyValue("chatId", chatId)
-                    .addKeyValue("updateId", updateId)
-                    .addKeyValue("url", url)
+                    .addKeyValue("chatId", pendingUpdate.chatId())
+                    .addKeyValue("updateId", pendingUpdate.updateId())
+                    .addKeyValue("url", pendingUpdate.url())
                     .addKeyValue("errorCode", response.errorCode())
                     .addKeyValue("errorDescription", response.description())
                     .addKeyValue("success", false)
                     .log("Update notification failed");
+            return false;
         } catch (RuntimeException exception) {
-            LOGGER.atWarn()
+            log.atWarn()
                     .addKeyValue("operation", "sendUpdateNotification")
-                    .addKeyValue("chatId", chatId)
-                    .addKeyValue("updateId", updateId)
-                    .addKeyValue("url", url)
+                    .addKeyValue("chatId", pendingUpdate.chatId())
+                    .addKeyValue("updateId", pendingUpdate.updateId())
+                    .addKeyValue("url", pendingUpdate.url())
                     .addKeyValue("success", false)
                     .setCause(exception)
                     .log("Update notification failed with exception");
+            return false;
         }
+    }
+
+    private void logNullResponse(PendingLinkUpdate pendingUpdate) {
+        log.atWarn()
+                .addKeyValue("operation", "sendUpdateNotification")
+                .addKeyValue("chatId", pendingUpdate.chatId())
+                .addKeyValue("updateId", pendingUpdate.updateId())
+                .addKeyValue("url", pendingUpdate.url())
+                .addKeyValue("success", false)
+                .log("Update notification failed with null response");
     }
 }

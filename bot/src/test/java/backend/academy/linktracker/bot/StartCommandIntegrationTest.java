@@ -5,6 +5,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
@@ -89,8 +90,11 @@ class StartCommandIntegrationTest {
                                 }
                                 """)));
 
+        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
+
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            verify(1, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
             var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
                     .getFirst()
                     .getBodyAsString();

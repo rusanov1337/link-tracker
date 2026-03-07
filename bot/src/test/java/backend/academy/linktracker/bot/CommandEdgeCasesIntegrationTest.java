@@ -6,6 +6,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
@@ -34,10 +35,12 @@ class CommandEdgeCasesIntegrationTest {
     void startCommandWithMentionReturnsWelcomeMessage() {
         int updateId = 223001;
         stubMessageUpdateScenario("start-command-mention", updateId, "/start@test_bot");
+        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
         stubSendMessageSuccess();
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            verify(1, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
             var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
                     .getFirst()
                     .getBodyAsString();
@@ -50,10 +53,12 @@ class CommandEdgeCasesIntegrationTest {
     void startCommandWithPayloadReturnsWelcomeMessage() {
         int updateId = 223002;
         stubMessageUpdateScenario("start-command-payload", updateId, "/start payload");
+        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
         stubSendMessageSuccess();
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            verify(1, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
             var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
                     .getFirst()
                     .getBodyAsString();

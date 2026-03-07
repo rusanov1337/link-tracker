@@ -1,6 +1,7 @@
 package backend.academy.linktracker.scrapper.client.external;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import backend.academy.linktracker.scrapper.properties.GithubProperties;
@@ -83,5 +84,16 @@ class GithubExternalLinkClientTest {
         var result = client.fetchLastUpdated(URI.create("https://github.com/octocat/hello-world"));
 
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void supportsOnlyRepositoryUrls() {
+        assertTrue(client.supports(URI.create("https://github.com/octocat/hello-world")));
+        assertTrue(client.supports(URI.create("https://github.com/octocat/hello-world/")));
+        assertTrue(client.supports(URI.create("https://github.com/octocat/hello-world?tab=readme")));
+        assertTrue(client.supports(URI.create("https://github.com/octocat/hello-world#top")));
+        assertTrue(client.supports(URI.create("https://GITHUB.COM/octocat/hello-world")));
+        assertFalse(client.supports(URI.create("https://github.com/octocat/hello-world/issues/1")));
+        assertFalse(client.supports(URI.create("https://github.com/octocat")));
     }
 }

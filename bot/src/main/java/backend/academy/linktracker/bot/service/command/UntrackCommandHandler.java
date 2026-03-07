@@ -2,10 +2,14 @@ package backend.academy.linktracker.bot.service.command;
 
 import backend.academy.linktracker.bot.client.scrapper.ScrapperClient;
 import backend.academy.linktracker.bot.client.scrapper.ScrapperClientException;
+import backend.academy.linktracker.bot.service.BotCommandDefinition;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class UntrackCommandHandler implements CommandHandler {
 
     public static final String COMMAND = "/untrack";
@@ -14,15 +18,11 @@ public class UntrackCommandHandler implements CommandHandler {
     public static final String INVALID_LINK_RESPONSE = "Некорректная ссылка.";
     public static final String SUCCESS_RESPONSE = "Ссылка удалена из отслеживания.";
     public static final String NOT_TRACKED_RESPONSE = "Ссылка не отслеживается.";
+    public static final String START_REQUIRED_RESPONSE = "Сначала выполните /start.";
     public static final String SCRAPPER_UNAVAILABLE_RESPONSE = "Не удалось удалить ссылку. Попробуйте позже.";
 
     private final ScrapperClient scrapperClient;
     private final LinkInputParser linkInputParser;
-
-    public UntrackCommandHandler(ScrapperClient scrapperClient, LinkInputParser linkInputParser) {
-        this.scrapperClient = scrapperClient;
-        this.linkInputParser = linkInputParser;
-    }
 
     @Override
     public String command() {
@@ -35,7 +35,7 @@ public class UntrackCommandHandler implements CommandHandler {
     }
 
     @Override
-    public String handle(CommandRequest request, CommandContext context) {
+    public String handle(CommandRequest request, List<BotCommandDefinition> supportedCommands) {
         var normalizedLink = linkInputParser.parseHttpUrl(request.arguments());
         if (request.arguments().isBlank()) {
             return USAGE_RESPONSE;
@@ -45,11 +45,13 @@ public class UntrackCommandHandler implements CommandHandler {
         }
 
         try {
-            scrapperClient.ensureChatRegistered(request.chatId());
             scrapperClient.removeLink(request.chatId(), normalizedLink.orElseThrow());
             return SUCCESS_RESPONSE;
         } catch (ScrapperClientException exception) {
-            if (exception.hasStatus(HttpStatus.NOT_FOUND.value())) {
+            if (exception.isChatNotFound()) {
+                return START_REQUIRED_RESPONSE;
+            }
+            if (exception.isLinkNotFound()) {
                 return NOT_TRACKED_RESPONSE;
             }
             if (exception.hasStatus(HttpStatus.BAD_REQUEST.value())) {
@@ -57,10 +59,5 @@ public class UntrackCommandHandler implements CommandHandler {
             }
             return SCRAPPER_UNAVAILABLE_RESPONSE;
         }
-    }
-
-    @Override
-    public int order() {
-        return 40;
     }
 }

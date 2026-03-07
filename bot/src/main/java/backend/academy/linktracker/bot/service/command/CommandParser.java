@@ -16,18 +16,14 @@ public class CommandParser {
             return Optional.empty();
         }
 
-        int firstSpaceIndex = normalizedText.indexOf(' ');
-        var commandWithMention = firstSpaceIndex >= 0 ? normalizedText.substring(0, firstSpaceIndex) : normalizedText;
-        var arguments = firstSpaceIndex >= 0
-                ? normalizedText.substring(firstSpaceIndex + 1).strip()
-                : "";
-
-        int mentionSeparatorIndex = commandWithMention.indexOf('@');
-        var command = mentionSeparatorIndex >= 0
-                ? commandWithMention.substring(0, mentionSeparatorIndex)
-                : commandWithMention;
-
-        if (command.isBlank()) {
+        var commandAndArguments = normalizedText.split("\\s+", 2);
+        var commandWithMention = commandAndArguments[0];
+        if (commandWithMention.length() == 1) {
+            return Optional.empty();
+        }
+        var arguments = commandAndArguments.length > 1 ? commandAndArguments[1].strip() : "";
+        var command = commandWithMention.split("@", 2)[0];
+        if (command.length() == 1) {
             return Optional.empty();
         }
 

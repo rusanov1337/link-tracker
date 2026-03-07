@@ -106,21 +106,21 @@ class HelpCommandIntegrationTest {
     private String expectedHelpMessage() {
         return "Доступные команды:"
                 + System.lineSeparator()
-                + StartCommandHandler.COMMAND
-                + " - "
-                + StartCommandHandler.DESCRIPTION
-                + System.lineSeparator()
                 + HelpCommandHandler.COMMAND
                 + " - "
                 + HelpCommandHandler.DESCRIPTION
                 + System.lineSeparator()
-                + TrackCommandHandler.COMMAND
-                + " - "
-                + TrackCommandHandler.DESCRIPTION
-                + System.lineSeparator()
                 + ListCommandHandler.COMMAND
                 + " - "
                 + ListCommandHandler.DESCRIPTION
+                + System.lineSeparator()
+                + StartCommandHandler.COMMAND
+                + " - "
+                + StartCommandHandler.DESCRIPTION
+                + System.lineSeparator()
+                + TrackCommandHandler.COMMAND
+                + " - "
+                + TrackCommandHandler.DESCRIPTION
                 + System.lineSeparator()
                 + UntrackCommandHandler.COMMAND
                 + " - "

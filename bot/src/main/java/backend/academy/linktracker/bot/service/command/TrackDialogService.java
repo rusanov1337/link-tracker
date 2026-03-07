@@ -4,16 +4,17 @@ import backend.academy.linktracker.bot.client.scrapper.ScrapperClient;
 import backend.academy.linktracker.bot.client.scrapper.ScrapperClientException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class TrackDialogService {
 
     public static final String CANCEL_COMMAND = "/cancel";
@@ -27,22 +28,16 @@ public class TrackDialogService {
     public static final String DUPLICATE_RESPONSE = "Ссылка уже отслеживается";
     public static final String CANCELLED_RESPONSE = "Процесс отслеживания отменен.";
     public static final String NOTHING_TO_CANCEL_RESPONSE = "Нет активного процесса отслеживания.";
+    public static final String START_REQUIRED_RESPONSE = "Сначала выполните /start.";
     public static final String SCRAPPER_UNAVAILABLE_RESPONSE = "Не удалось добавить ссылку. Попробуйте позже.";
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(TrackDialogService.class);
 
     private final ScrapperClient scrapperClient;
     private final LinkInputParser linkInputParser;
     private final ConcurrentMap<Long, TrackDialogSession> sessionsByChatId = new ConcurrentHashMap<>();
 
-    public TrackDialogService(ScrapperClient scrapperClient, LinkInputParser linkInputParser) {
-        this.scrapperClient = scrapperClient;
-        this.linkInputParser = linkInputParser;
-    }
-
     public String start(long chatId) {
         sessionsByChatId.put(chatId, TrackDialogSession.start());
-        LOGGER.atInfo()
+        log.atInfo()
                 .addKeyValue("operation", "trackDialogStart")
                 .addKeyValue("chatId", chatId)
                 .log("Dialog started");
@@ -59,7 +54,7 @@ public class TrackDialogService {
             return NOTHING_TO_CANCEL_RESPONSE;
         }
 
-        LOGGER.atInfo()
+        log.atInfo()
                 .addKeyValue("operation", "trackDialogCancel")
                 .addKeyValue("chatId", chatId)
                 .addKeyValue("state", removed.state())
@@ -99,17 +94,19 @@ public class TrackDialogService {
     private Optional<String> handleFiltersInput(long chatId, String text, TrackDialogSession session) {
         var filters = parseCommaSeparatedValues(text);
         try {
-            scrapperClient.ensureChatRegistered(chatId);
             scrapperClient.addLink(chatId, session.link(), session.tags(), filters);
             sessionsByChatId.remove(chatId);
             return Optional.of(SUCCESS_RESPONSE);
         } catch (ScrapperClientException exception) {
             sessionsByChatId.remove(chatId);
-            if (exception.hasStatus(HttpStatus.CONFLICT.value())) {
+            if (exception.isLinkAlreadyTracked()) {
                 return Optional.of(DUPLICATE_RESPONSE);
             }
             if (exception.hasStatus(HttpStatus.BAD_REQUEST.value())) {
                 return Optional.of(LINK_INVALID_RESPONSE);
+            }
+            if (exception.isChatNotFound()) {
+                return Optional.of(START_REQUIRED_RESPONSE);
             }
             return Optional.of(SCRAPPER_UNAVAILABLE_RESPONSE);
         }
@@ -128,7 +125,6 @@ public class TrackDialogService {
         return Arrays.stream(normalized.split(","))
                 .map(String::strip)
                 .filter(value -> !value.isEmpty())
-                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
     }

@@ -9,6 +9,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import backend.academy.linktracker.bot.service.PendingLinkUpdateStore;
 import backend.academy.linktracker.grpc.BotUpdatesServiceGrpc;
 import backend.academy.linktracker.grpc.LinkUpdateRequest;
 import io.grpc.ManagedChannel;
@@ -37,6 +38,9 @@ import org.wiremock.spring.EnableWireMock;
             "app.grpc.server.port=19090"
         })
 class BotUpdatesGrpcIntegrationTest {
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private PendingLinkUpdateStore pendingLinkUpdateStore;
 
     @Test
     void validGrpcUpdateRequestSendsTelegramMessages() {
@@ -91,6 +95,29 @@ class BotUpdatesGrpcIntegrationTest {
         }
 
         verify(0, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+    }
+
+    @Test
+    void telegramDeliveryFailureQueuesPendingRetriesAndReturnsOk() {
+        stubFor(post(urlMatching("/bot[^/]+/sendMessage"))
+                .willReturn(aResponse().withStatus(500)));
+
+        var channel = newGrpcChannel();
+        try {
+            var request = LinkUpdateRequest.newBuilder()
+                    .setId(1)
+                    .setUrl("https://github.com/user/repo")
+                    .setDescription("New update")
+                    .addAllTgChatIds(List.of(111L, 222L))
+                    .build();
+
+            BotUpdatesServiceGrpc.newBlockingStub(channel).processUpdate(request);
+        } finally {
+            channel.shutdownNow();
+        }
+
+        assertEquals(2, pendingLinkUpdateStore.size());
+        verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
     }
 
     private ManagedChannel newGrpcChannel() {

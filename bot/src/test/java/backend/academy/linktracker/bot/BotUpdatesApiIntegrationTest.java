@@ -8,6 +8,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import backend.academy.linktracker.bot.service.PendingLinkUpdateStore;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -33,6 +34,9 @@ class BotUpdatesApiIntegrationTest {
 
     @LocalServerPort
     private int port;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private PendingLinkUpdateStore pendingLinkUpdateStore;
 
     private HttpClient httpClient;
 
@@ -113,6 +117,26 @@ class BotUpdatesApiIntegrationTest {
         var response = sendUpdatesRequest(invalidJson);
 
         assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void telegramDeliveryFailureQueuesPendingRetriesAndReturnsOk() throws Exception {
+        stubFor(post(urlMatching("/bot[^/]+/sendMessage"))
+                .willReturn(aResponse().withStatus(500)));
+
+        var requestBody = """
+                {
+                  "id": 1,
+                  "url": "https://github.com/user/repo",
+                  "description": "New update",
+                  "tgChatIds": [111, 222]
+                }
+                """;
+        var response = sendUpdatesRequest(requestBody);
+
+        assertEquals(200, response.statusCode());
+        assertEquals(2, pendingLinkUpdateStore.size());
+        verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
     }
 
     private HttpResponse<String> sendUpdatesRequest(String jsonBody) throws Exception {

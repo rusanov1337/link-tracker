@@ -82,6 +82,26 @@ class ScrapperApiIntegrationTest {
     }
 
     @Test
+    void duplicateLinkTrackingIgnoresSchemeAndHostCase() throws Exception {
+        registerChat(1L);
+        assertEquals(200, addLink(1L, "https://github.com/user/repo").statusCode());
+
+        var duplicateResponse = addLink(1L, "HTTPS://GITHUB.COM/user/repo");
+        assertEquals(409, duplicateResponse.statusCode());
+        assertBodyContains(duplicateResponse, "\"code\"\\s*:\\s*\"409\"");
+    }
+
+    @Test
+    void duplicateLinkTrackingIgnoresSupportedUrlDecorations() throws Exception {
+        registerChat(1L);
+        assertEquals(200, addLink(1L, "https://github.com/user/repo/").statusCode());
+
+        var duplicateResponse = addLink(1L, "https://github.com/user/repo?tab=readme#top");
+        assertEquals(409, duplicateResponse.statusCode());
+        assertBodyContains(duplicateResponse, "\"code\"\\s*:\\s*\"409\"");
+    }
+
+    @Test
     void removingLinkForUnknownChatReturnsErrorAndKeepsData() throws Exception {
         registerChat(1L);
         assertEquals(200, addLink(1L, "https://github.com/user/project").statusCode());
@@ -94,6 +114,32 @@ class ScrapperApiIntegrationTest {
         assertEquals(200, getResponse.statusCode());
         assertBodyContains(getResponse, "\"size\"\\s*:\\s*1");
         assertBodyContains(getResponse, "https://github\\.com/user/project");
+    }
+
+    @Test
+    void removeLinkMatchesRegardlessOfSchemeAndHostCase() throws Exception {
+        registerChat(1L);
+        assertEquals(200, addLink(1L, "https://github.com/user/project").statusCode());
+
+        var removeResponse = removeLink(1L, "HTTPS://GITHUB.COM/user/project");
+        assertEquals(200, removeResponse.statusCode());
+
+        var getResponse = send("GET", "/links", null, Map.of(TG_CHAT_HEADER, "1"));
+        assertEquals(200, getResponse.statusCode());
+        assertBodyContains(getResponse, "\"size\"\\s*:\\s*0");
+    }
+
+    @Test
+    void removeLinkMatchesEquivalentSupportedUrl() throws Exception {
+        registerChat(1L);
+        assertEquals(200, addLink(1L, "https://stackoverflow.com/q/123").statusCode());
+
+        var removeResponse = removeLink(1L, "https://stackoverflow.com/questions/123/example?sort=votes#answer");
+        assertEquals(200, removeResponse.statusCode());
+
+        var getResponse = send("GET", "/links", null, Map.of(TG_CHAT_HEADER, "1"));
+        assertEquals(200, getResponse.statusCode());
+        assertBodyContains(getResponse, "\"size\"\\s*:\\s*0");
     }
 
     @Test
@@ -134,6 +180,19 @@ class ScrapperApiIntegrationTest {
         var response = addLink(1L, "https://example.com/page");
         assertEquals(400, response.statusCode());
         assertBodyContains(response, "\"code\"\\s*:\\s*\"400\"");
+    }
+
+    @Test
+    void addingLinkWithUnsupportedResourceTypeReturnsBadRequest() throws Exception {
+        registerChat(1L);
+
+        var githubIssueResponse = addLink(1L, "https://github.com/user/repo/issues/1");
+        assertEquals(400, githubIssueResponse.statusCode());
+        assertBodyContains(githubIssueResponse, "\"code\"\\s*:\\s*\"400\"");
+
+        var stackoverflowUserResponse = addLink(1L, "https://stackoverflow.com/users/12345/example");
+        assertEquals(400, stackoverflowUserResponse.statusCode());
+        assertBodyContains(stackoverflowUserResponse, "\"code\"\\s*:\\s*\"400\"");
     }
 
     @Test

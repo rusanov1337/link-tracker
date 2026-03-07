@@ -24,7 +24,7 @@ class UntrackCommandHandlerTest {
         var handler = new UntrackCommandHandler(scrapperClient, linkInputParser);
         var request = new CommandRequest("/untrack", "", "/untrack", 11L, 1L);
 
-        var response = handler.handle(request, new CommandContext(java.util.List.of()));
+        var response = handler.handle(request, java.util.List.of());
 
         assertEquals(UntrackCommandHandler.USAGE_RESPONSE, response);
     }
@@ -35,7 +35,7 @@ class UntrackCommandHandlerTest {
         var request = new CommandRequest(
                 "/untrack", "tbank://github.com/user/repo", "/untrack tbank://github.com/user/repo", 11L, 1L);
 
-        var response = handler.handle(request, new CommandContext(java.util.List.of()));
+        var response = handler.handle(request, java.util.List.of());
 
         assertEquals(UntrackCommandHandler.INVALID_LINK_RESPONSE, response);
     }
@@ -46,10 +46,9 @@ class UntrackCommandHandlerTest {
         var request = new CommandRequest(
                 "/untrack", "https://github.com/user/repo", "/untrack https://github.com/user/repo", 11L, 1L);
 
-        var response = handler.handle(request, new CommandContext(java.util.List.of()));
+        var response = handler.handle(request, java.util.List.of());
 
         assertEquals(UntrackCommandHandler.SUCCESS_RESPONSE, response);
-        verify(scrapperClient).ensureChatRegistered(11L);
         verify(scrapperClient).removeLink(11L, "https://github.com/user/repo");
     }
 
@@ -59,10 +58,23 @@ class UntrackCommandHandlerTest {
         var request = new CommandRequest(
                 "/untrack", "https://github.com/user/repo", "/untrack https://github.com/user/repo", 11L, 1L);
         when(scrapperClient.removeLink(11L, "https://github.com/user/repo"))
-                .thenThrow(new ScrapperClientException(404, "not found"));
+                .thenThrow(new ScrapperClientException(404, ScrapperClientException.LINK_NOT_FOUND, "not found"));
 
-        var response = handler.handle(request, new CommandContext(java.util.List.of()));
+        var response = handler.handle(request, java.util.List.of());
 
         assertEquals(UntrackCommandHandler.NOT_TRACKED_RESPONSE, response);
+    }
+
+    @Test
+    void returnsStartRequiredWhenChatIsNotRegistered() {
+        var handler = new UntrackCommandHandler(scrapperClient, linkInputParser);
+        var request = new CommandRequest(
+                "/untrack", "https://github.com/user/repo", "/untrack https://github.com/user/repo", 11L, 1L);
+        when(scrapperClient.removeLink(11L, "https://github.com/user/repo"))
+                .thenThrow(new ScrapperClientException(404, ScrapperClientException.CHAT_NOT_FOUND, "chat not found"));
+
+        var response = handler.handle(request, java.util.List.of());
+
+        assertEquals(UntrackCommandHandler.START_REQUIRED_RESPONSE, response);
     }
 }

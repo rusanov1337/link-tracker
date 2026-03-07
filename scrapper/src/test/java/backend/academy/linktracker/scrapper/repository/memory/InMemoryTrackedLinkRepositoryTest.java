@@ -27,6 +27,44 @@ class InMemoryTrackedLinkRepositoryTest {
     }
 
     @Test
+    void createTreatsSchemeAndHostCaseInsensitively() {
+        var now = Instant.parse("2026-03-06T10:00:00Z");
+
+        var created = repository.create(URI.create("https://github.com/org/repo"), now);
+        var duplicate = repository.create(URI.create("HTTPS://GITHUB.COM/org/repo"), now.plusSeconds(5));
+
+        assertEquals(created.id(), duplicate.id());
+        assertEquals("https://github.com/org/repo", created.url().toString());
+        assertTrue(
+                repository.findByUrl(URI.create("https://GITHUB.COM/org/repo")).isPresent());
+        assertEquals(1, repository.count());
+    }
+
+    @Test
+    void createTreatsEquivalentSupportedUrlsAsDuplicates() {
+        var now = Instant.parse("2026-03-06T10:00:00Z");
+
+        var github = repository.create(URI.create("https://github.com/org/repo/"), now);
+        var githubDuplicate =
+                repository.create(URI.create("https://github.com/org/repo?tab=readme#top"), now.plusSeconds(5));
+        var stackoverflow = repository.create(URI.create("https://stackoverflow.com/q/12345/title"), now);
+        var stackoverflowDuplicate = repository.create(
+                URI.create("https://stackoverflow.com/questions/12345/example?sort=votes#answer"), now.plusSeconds(5));
+
+        assertEquals(github.id(), githubDuplicate.id());
+        assertEquals(stackoverflow.id(), stackoverflowDuplicate.id());
+        assertEquals("https://github.com/org/repo", github.url().toString());
+        assertEquals(
+                "https://stackoverflow.com/questions/12345", stackoverflow.url().toString());
+        assertTrue(
+                repository.findByUrl(URI.create("https://github.com/org/repo/")).isPresent());
+        assertTrue(repository
+                .findByUrl(URI.create("https://stackoverflow.com/q/12345"))
+                .isPresent());
+        assertEquals(2, repository.count());
+    }
+
+    @Test
     void updateChangesStoredEntity() {
         var now = Instant.parse("2026-03-06T10:00:00Z");
         var created = repository.create(URI.create("https://stackoverflow.com/questions/1"), now);

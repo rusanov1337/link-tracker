@@ -26,7 +26,8 @@ public class GrpcBotUpdatesClient implements BotUpdatesClient {
                         botProperties.getGrpc().getPort())
                 .usePlaintext()
                 .build();
-        this.blockingStub = BotUpdatesServiceGrpc.newBlockingStub(channel);
+        this.blockingStub = BotUpdatesServiceGrpc.newBlockingStub(channel)
+                .withDeadlineAfter(botProperties.getGrpc().getDeadline().toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override

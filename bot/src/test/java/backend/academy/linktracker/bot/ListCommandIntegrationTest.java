@@ -77,8 +77,6 @@ class ListCommandIntegrationTest {
                                 }
                                 """)));
 
-        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
-
         stubFor(get(urlEqualTo("/links"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -118,6 +116,7 @@ class ListCommandIntegrationTest {
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            verify(0, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
             var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
                     .getFirst()
                     .getBodyAsString();
@@ -179,8 +178,6 @@ class ListCommandIntegrationTest {
                                 }
                                 """)));
 
-        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
-
         stubFor(get(urlEqualTo("/links"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -220,6 +217,7 @@ class ListCommandIntegrationTest {
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(1, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            verify(0, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
             var body = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")))
                     .getFirst()
                     .getBodyAsString();

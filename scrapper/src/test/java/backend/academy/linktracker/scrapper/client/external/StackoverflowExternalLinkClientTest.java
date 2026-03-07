@@ -1,6 +1,7 @@
 package backend.academy.linktracker.scrapper.client.external;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import backend.academy.linktracker.scrapper.properties.StackoverflowProperties;
@@ -85,5 +86,14 @@ class StackoverflowExternalLinkClientTest {
         var result = client.fetchLastUpdated(URI.create("https://stackoverflow.com/questions/12345/sample-question"));
 
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void supportsOnlyQuestionUrls() {
+        assertTrue(client.supports(URI.create("https://stackoverflow.com/questions/12345/sample-question")));
+        assertTrue(client.supports(URI.create("https://stackoverflow.com/q/12345")));
+        assertTrue(client.supports(URI.create("https://stackoverflow.com/questions/12345/sample-question?sort=votes")));
+        assertFalse(client.supports(URI.create("https://stackoverflow.com/users/12345/example")));
+        assertFalse(client.supports(URI.create("https://stackoverflow.com/questions/not-a-number/example")));
     }
 }

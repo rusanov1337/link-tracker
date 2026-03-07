@@ -17,8 +17,7 @@ public class BotUpdatesGrpcService extends BotUpdatesServiceGrpc.BotUpdatesServi
     private final LinkUpdateNotificationService linkUpdateNotificationService;
     private final Validator validator;
 
-    public BotUpdatesGrpcService(
-            LinkUpdateNotificationService linkUpdateNotificationService, Validator validator) {
+    public BotUpdatesGrpcService(LinkUpdateNotificationService linkUpdateNotificationService, Validator validator) {
         this.linkUpdateNotificationService = linkUpdateNotificationService;
         this.validator = validator;
     }
@@ -42,7 +41,8 @@ public class BotUpdatesGrpcService extends BotUpdatesServiceGrpc.BotUpdatesServi
     }
 
     private void validateRequest(LinkUpdateRequest request) {
-        var linkUpdate = new LinkUpdate(request.getId(), request.getUrl(), request.getDescription(), request.getTgChatIdsList());
+        var linkUpdate =
+                new LinkUpdate(request.getId(), request.getUrl(), request.getDescription(), request.getTgChatIdsList());
         var violations = validator.validate(linkUpdate);
         if (violations.isEmpty()) {
             return;

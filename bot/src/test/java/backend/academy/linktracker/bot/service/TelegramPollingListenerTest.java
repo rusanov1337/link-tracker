@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import backend.academy.linktracker.bot.properties.TelegramProperties;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
 import com.pengrad.telegrambot.model.Update;
@@ -29,8 +30,8 @@ class TelegramPollingListenerTest {
 
     @Test
     void startPollingRegistersUpdatesListener() {
-        var pollingListener =
-                new TelegramPollingListener(telegramBot, botCommandService, metrics(new SimpleMeterRegistry()));
+        var pollingListener = new TelegramPollingListener(
+                telegramBot, botCommandService, metrics(new SimpleMeterRegistry()), telegramProperties());
 
         pollingListener.startPolling();
 
@@ -40,7 +41,8 @@ class TelegramPollingListenerTest {
     @Test
     void processRetriesSendMessageAfterExecuteFailure() {
         var meterRegistry = new SimpleMeterRegistry();
-        var pollingListener = new TelegramPollingListener(telegramBot, botCommandService, metrics(meterRegistry));
+        var pollingListener = new TelegramPollingListener(
+                telegramBot, botCommandService, metrics(meterRegistry), telegramProperties());
 
         pollingListener.startPolling();
 
@@ -67,7 +69,44 @@ class TelegramPollingListenerTest {
         assertEquals(1.0, meterRegistry.find("send_failures_total").counter().count());
     }
 
+    @Test
+    void processRetriesSendMessageAfterNullResponse() {
+        var meterRegistry = new SimpleMeterRegistry();
+        var pollingListener = new TelegramPollingListener(
+                telegramBot, botCommandService, metrics(meterRegistry), telegramProperties());
+
+        pollingListener.startPolling();
+
+        var listenerCaptor = ArgumentCaptor.forClass(UpdatesListener.class);
+        verify(telegramBot).setUpdatesListener(listenerCaptor.capture());
+        var updatesListener = listenerCaptor.getValue();
+
+        var update = org.mockito.Mockito.mock(Update.class);
+        when(update.updateId()).thenReturn(123);
+
+        var sendMessage = new SendMessage(999L, "response");
+        when(botCommandService.createResponse(update)).thenReturn(Optional.of(sendMessage));
+
+        var okResponse = org.mockito.Mockito.mock(SendResponse.class);
+        when(okResponse.isOk()).thenReturn(true);
+        when(telegramBot.execute(org.mockito.ArgumentMatchers.any(SendMessage.class)))
+                .thenReturn(null)
+                .thenReturn(okResponse);
+
+        int result = updatesListener.process(List.of(update));
+
+        assertEquals(UpdatesListener.CONFIRMED_UPDATES_ALL, result);
+        verify(telegramBot, org.mockito.Mockito.times(2)).execute(org.mockito.ArgumentMatchers.any(SendMessage.class));
+        assertEquals(1.0, meterRegistry.find("send_failures_total").counter().count());
+    }
+
     private BotMetricsService metrics(SimpleMeterRegistry meterRegistry) {
         return new BotMetricsService(meterRegistry);
+    }
+
+    private TelegramProperties telegramProperties() {
+        var properties = new TelegramProperties();
+        properties.setMaxSendAttempts(3);
+        return properties;
     }
 }

@@ -3,22 +3,22 @@ package backend.academy.linktracker.bot.service.command;
 import backend.academy.linktracker.bot.client.scrapper.ScrapperClient;
 import backend.academy.linktracker.bot.client.scrapper.ScrapperClientException;
 import backend.academy.linktracker.bot.client.scrapper.dto.LinkResponse;
+import backend.academy.linktracker.bot.service.BotCommandDefinition;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class ListCommandHandler implements CommandHandler {
 
     public static final String COMMAND = "/list";
     public static final String DESCRIPTION = "Показать отслеживаемые ссылки";
     public static final String EMPTY_LIST_RESPONSE = "Список отслеживаемых ссылок пуст.";
+    public static final String START_REQUIRED_RESPONSE = "Сначала выполните /start.";
     public static final String SCRAPPER_UNAVAILABLE_RESPONSE = "Не удалось получить список ссылок. Попробуйте позже.";
 
     private final ScrapperClient scrapperClient;
-
-    public ListCommandHandler(ScrapperClient scrapperClient) {
-        this.scrapperClient = scrapperClient;
-    }
 
     @Override
     public String command() {
@@ -31,9 +31,8 @@ public class ListCommandHandler implements CommandHandler {
     }
 
     @Override
-    public String handle(CommandRequest request, CommandContext context) {
+    public String handle(CommandRequest request, List<BotCommandDefinition> supportedCommands) {
         try {
-            scrapperClient.ensureChatRegistered(request.chatId());
             var listResponse = scrapperClient.getLinks(request.chatId());
             var tagFilter = request.arguments().strip();
             var links = listResponse.links() == null ? List.<LinkResponse>of() : listResponse.links();
@@ -64,12 +63,10 @@ public class ListCommandHandler implements CommandHandler {
 
             return formattedLinks.toString();
         } catch (ScrapperClientException exception) {
+            if (exception.isChatNotFound()) {
+                return START_REQUIRED_RESPONSE;
+            }
             return SCRAPPER_UNAVAILABLE_RESPONSE;
         }
-    }
-
-    @Override
-    public int order() {
-        return 30;
     }
 }

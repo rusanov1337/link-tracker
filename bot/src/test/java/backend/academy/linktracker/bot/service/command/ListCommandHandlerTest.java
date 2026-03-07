@@ -26,10 +26,10 @@ class ListCommandHandlerTest {
         var request = new CommandRequest("/list", "", "/list", 42L, 7L);
         when(scrapperClient.getLinks(42L)).thenReturn(new ListLinksResponse(List.of(), 0));
 
-        var response = handler.handle(request, new CommandContext(List.of()));
+        var response = handler.handle(request, List.of());
 
         assertEquals(ListCommandHandler.EMPTY_LIST_RESPONSE, response);
-        verify(scrapperClient).ensureChatRegistered(42L);
+        verify(scrapperClient).getLinks(42L);
     }
 
     @Test
@@ -44,7 +44,7 @@ class ListCommandHandlerTest {
                                         2L, "https://stackoverflow.com/questions/1", List.of("study"), List.of())),
                         2));
 
-        var response = handler.handle(request, new CommandContext(List.of()));
+        var response = handler.handle(request, List.of());
 
         assertEquals(
                 "Отслеживаемые ссылки с тегом 'work':" + System.lineSeparator() + "1. https://github.com/user/repo",
@@ -57,8 +57,20 @@ class ListCommandHandlerTest {
         var request = new CommandRequest("/list", "", "/list", 42L, 7L);
         when(scrapperClient.getLinks(42L)).thenThrow(new ScrapperClientException(0, "boom"));
 
-        var response = handler.handle(request, new CommandContext(List.of()));
+        var response = handler.handle(request, List.of());
 
         assertEquals(ListCommandHandler.SCRAPPER_UNAVAILABLE_RESPONSE, response);
+    }
+
+    @Test
+    void returnsStartRequiredWhenChatIsNotRegistered() {
+        var handler = new ListCommandHandler(scrapperClient);
+        var request = new CommandRequest("/list", "", "/list", 42L, 7L);
+        when(scrapperClient.getLinks(42L))
+                .thenThrow(new ScrapperClientException(404, ScrapperClientException.CHAT_NOT_FOUND, "chat not found"));
+
+        var response = handler.handle(request, List.of());
+
+        assertEquals(ListCommandHandler.START_REQUIRED_RESPONSE, response);
     }
 }

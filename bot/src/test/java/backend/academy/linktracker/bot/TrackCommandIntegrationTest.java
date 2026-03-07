@@ -5,6 +5,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.resetAllRequests;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
@@ -36,7 +37,6 @@ class TrackCommandIntegrationTest {
     @Test
     void trackCommandDialogAddsLink() {
         stubDialogUpdates("track-dialog", List.of("/track", "https://github.com/user/repo", "work, docs", "-"), 330001);
-        stubFor(post(urlEqualTo("/tg-chat/987654321")).willReturn(aResponse().withStatus(200)));
         stubFor(post(urlEqualTo("/links"))
                 .withHeader("Tg-Chat-Id", containing("987654321"))
                 .withRequestBody(containing("\"link\":\"https://github.com/user/repo\""))
@@ -54,9 +54,11 @@ class TrackCommandIntegrationTest {
                                 }
                                 """)));
         stubSendMessageSuccess();
+        resetAllRequests();
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(4, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+            verify(0, postRequestedFor(urlEqualTo("/tg-chat/987654321")));
             var requests = findAll(postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
 
             assertEquals(
@@ -78,6 +80,7 @@ class TrackCommandIntegrationTest {
     void cancelCommandInterruptsTrackDialog() {
         stubDialogUpdates("track-cancel-dialog", List.of("/track", "/cancel"), 331001);
         stubSendMessageSuccess();
+        resetAllRequests();
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
@@ -96,6 +99,7 @@ class TrackCommandIntegrationTest {
         stubDialogUpdates(
                 "track-interrupted-by-command", List.of("/track", "/help", "https://github.com/user/repo"), 332001);
         stubSendMessageSuccess();
+        resetAllRequests();
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
