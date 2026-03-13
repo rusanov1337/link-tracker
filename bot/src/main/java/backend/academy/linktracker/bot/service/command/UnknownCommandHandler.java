@@ -1,5 +1,7 @@
 package backend.academy.linktracker.bot.service.command;
 
+import backend.academy.linktracker.bot.service.BotCommandDefinition;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -19,12 +21,7 @@ public class UnknownCommandHandler implements CommandHandler {
     }
 
     @Override
-    public String handle(CommandRequest request, CommandContext context) {
+    public String handle(CommandRequest request, List<BotCommandDefinition> supportedCommands) {
         return RESPONSE;
-    }
-
-    @Override
-    public boolean isFallback() {
-        return true;
     }
 }

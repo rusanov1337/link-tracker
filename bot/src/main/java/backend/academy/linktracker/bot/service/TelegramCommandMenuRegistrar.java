@@ -1,5 +1,6 @@
 package backend.academy.linktracker.bot.service;
 
+import backend.academy.linktracker.bot.service.command.CommandRegistry;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.model.BotCommand;
 import com.pengrad.telegrambot.request.SetMyCommands;
@@ -19,17 +20,17 @@ public class TelegramCommandMenuRegistrar {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TelegramCommandMenuRegistrar.class);
     private final TelegramBot telegramBot;
-    private final BotCommandService botCommandService;
+    private final CommandRegistry commandRegistry;
 
-    public TelegramCommandMenuRegistrar(TelegramBot telegramBot, BotCommandService botCommandService) {
+    public TelegramCommandMenuRegistrar(TelegramBot telegramBot, CommandRegistry commandRegistry) {
         this.telegramBot = telegramBot;
-        this.botCommandService = botCommandService;
+        this.commandRegistry = commandRegistry;
     }
 
     @PostConstruct
     void registerCommands() {
         try {
-            var commands = botCommandService.supportedCommands().stream()
+            var commands = commandRegistry.supportedCommands().stream()
                     .map(command -> new BotCommand(command.command(), command.description()))
                     .toArray(BotCommand[]::new);
             var response = telegramBot.execute(new SetMyCommands(commands));

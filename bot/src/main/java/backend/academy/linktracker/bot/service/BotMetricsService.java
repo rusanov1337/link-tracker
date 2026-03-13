@@ -11,11 +11,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class BotMetricsService {
 
+    private record CommandMetricKey(String command, String status) {}
+
     private final MeterRegistry meterRegistry;
     private final Counter updatesTotal;
     private final Counter sendFailuresTotal;
     private final Timer processingLatencyMs;
-    private final Map<String, Counter> commandCounters = new ConcurrentHashMap<>();
+    private final Map<CommandMetricKey, Counter> commandCounters = new ConcurrentHashMap<>();
 
     public BotMetricsService(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
@@ -34,11 +36,13 @@ public class BotMetricsService {
         updatesTotal.increment();
     }
 
-    public void incrementCommandsTotal(String type) {
+    public void incrementCommandsTotal(String command, String status) {
+        var metricKey = new CommandMetricKey(command, status);
         commandCounters
-                .computeIfAbsent(type, key -> Counter.builder("commands_total")
-                        .description("Total processed bot commands by type")
-                        .tag("type", key)
+                .computeIfAbsent(metricKey, key -> Counter.builder("commands_total")
+                        .description("Total processed bot commands by command and status")
+                        .tag("command", key.command())
+                        .tag("status", key.status())
                         .register(meterRegistry))
                 .increment();
     }

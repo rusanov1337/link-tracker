@@ -85,8 +85,10 @@ class BotCommandServiceTest {
     @Test
     void knownAndUnknownCommandsIncrementMetrics() {
         var meterRegistry = new SimpleMeterRegistry();
+        var unknownCommandHandler = new UnknownCommandHandler();
         var commandRegistry = new CommandRegistry(
-                List.of(new StartCommandHandler(), new HelpCommandHandler(), new UnknownCommandHandler()));
+                List.of(new StartCommandHandler(), new HelpCommandHandler(), unknownCommandHandler),
+                unknownCommandHandler);
         var metricsService = new BotMetricsService(meterRegistry);
         var executionService = new CommandExecutionService(commandRegistry, metricsService);
         var service = new BotCommandService(new CommandParser(), executionService);
@@ -98,14 +100,16 @@ class BotCommandServiceTest {
                 1.0,
                 meterRegistry
                         .find("commands_total")
-                        .tag("type", "known")
+                        .tag("command", "/start")
+                        .tag("status", "success")
                         .counter()
                         .count());
         assertEquals(
                 1.0,
                 meterRegistry
                         .find("commands_total")
-                        .tag("type", "unknown")
+                        .tag("command", "/abracadabra")
+                        .tag("status", "failure")
                         .counter()
                         .count());
     }
@@ -128,8 +132,10 @@ class BotCommandServiceTest {
     }
 
     private BotCommandService createService() {
+        var unknownCommandHandler = new UnknownCommandHandler();
         var commandRegistry = new CommandRegistry(
-                List.of(new StartCommandHandler(), new HelpCommandHandler(), new UnknownCommandHandler()));
+                List.of(new StartCommandHandler(), new HelpCommandHandler(), unknownCommandHandler),
+                unknownCommandHandler);
         var executionService =
                 new CommandExecutionService(commandRegistry, new BotMetricsService(new SimpleMeterRegistry()));
         return new BotCommandService(new CommandParser(), executionService);

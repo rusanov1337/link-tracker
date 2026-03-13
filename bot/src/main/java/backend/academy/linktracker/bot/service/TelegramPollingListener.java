@@ -1,38 +1,33 @@
 package backend.academy.linktracker.bot.service;
 
+import backend.academy.linktracker.bot.properties.TelegramProperties;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.request.SendMessage;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnProperty(prefix = "app.telegram", name = "polling-enabled", havingValue = "true", matchIfMissing = true)
+@Slf4j
+@RequiredArgsConstructor
 public class TelegramPollingListener {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TelegramPollingListener.class);
-    private static final int MAX_SEND_ATTEMPTS = 3;
     private final TelegramBot telegramBot;
     private final BotCommandService botCommandService;
     private final BotMetricsService botMetricsService;
-
-    public TelegramPollingListener(
-            TelegramBot telegramBot, BotCommandService botCommandService, BotMetricsService botMetricsService) {
-        this.telegramBot = telegramBot;
-        this.botCommandService = botCommandService;
-        this.botMetricsService = botMetricsService;
-    }
+    private final TelegramProperties telegramProperties;
 
     @PostConstruct
     void startPolling() {
-        LOGGER.atInfo().addKeyValue("pollingEnabled", true).log("Starting telegram polling listener");
+        log.atInfo().addKeyValue("pollingEnabled", true).log("Starting telegram polling listener");
         telegramBot.setUpdatesListener(updates -> {
-            LOGGER.atDebug().addKeyValue("updatesCount", updates.size()).log("Updates batch received");
+            log.atDebug().addKeyValue("updatesCount", updates.size()).log("Updates batch received");
             for (var update : updates) {
                 botMetricsService.incrementUpdatesTotal();
                 var startNanos = System.nanoTime();
@@ -48,7 +43,7 @@ public class TelegramPollingListener {
         try {
             botCommandService.createResponse(update).ifPresent(sendMessage -> executeWithRetry(update, sendMessage));
         } catch (RuntimeException exception) {
-            LOGGER.atError()
+            log.atError()
                     .addKeyValue("operation", "processUpdate")
                     .addKeyValue("updateId", update.updateId())
                     .setCause(exception)
@@ -57,11 +52,11 @@ public class TelegramPollingListener {
     }
 
     private void executeWithRetry(Update update, SendMessage sendMessage) {
-        for (int attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= telegramProperties.getMaxSendAttempts(); attempt++) {
             try {
                 var sendResponse = telegramBot.execute(sendMessage);
                 if (sendResponse.isOk()) {
-                    LOGGER.atInfo()
+                    log.atInfo()
                             .addKeyValue("operation", "sendMessage")
                             .addKeyValue("updateId", update.updateId())
                             .addKeyValue("attempt", attempt)
@@ -71,7 +66,7 @@ public class TelegramPollingListener {
                     return;
                 }
 
-                LOGGER.atWarn()
+                log.atWarn()
                         .addKeyValue("operation", "sendMessage")
                         .addKeyValue("updateId", update.updateId())
                         .addKeyValue("attempt", attempt)
@@ -82,7 +77,7 @@ public class TelegramPollingListener {
                         .log("Telegram response send failed");
                 botMetricsService.incrementSendFailuresTotal();
             } catch (RuntimeException exception) {
-                LOGGER.atWarn()
+                log.atWarn()
                         .addKeyValue("operation", "sendMessage")
                         .addKeyValue("updateId", update.updateId())
                         .addKeyValue("attempt", attempt)
@@ -94,18 +89,18 @@ public class TelegramPollingListener {
             }
         }
 
-        LOGGER.atError()
+        log.atError()
                 .addKeyValue("operation", "sendMessage")
                 .addKeyValue("updateId", update.updateId())
                 .addKeyValue("chatId", sendMessage.getChatId())
-                .addKeyValue("attempts", MAX_SEND_ATTEMPTS)
+                .addKeyValue("attempts", telegramProperties.getMaxSendAttempts())
                 .addKeyValue("success", false)
                 .log("Telegram response was not sent after retries");
     }
 
     @PreDestroy
     void stopPolling() {
-        LOGGER.atInfo().log("Stopping telegram polling listener");
+        log.atInfo().log("Stopping telegram polling listener");
         telegramBot.removeGetUpdatesListener();
     }
 }

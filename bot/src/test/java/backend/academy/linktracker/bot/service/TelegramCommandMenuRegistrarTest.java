@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import backend.academy.linktracker.bot.service.command.CommandRegistry;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.model.BotCommand;
 import com.pengrad.telegrambot.request.SetMyCommands;
@@ -23,15 +24,15 @@ class TelegramCommandMenuRegistrarTest {
     private TelegramBot telegramBot;
 
     @Mock
-    private BotCommandService botCommandService;
+    private CommandRegistry commandRegistry;
 
     @Mock
     private BaseResponse baseResponse;
 
     @Test
     void registerCommandsSendsSetMyCommandsRequest() {
-        var registrar = new TelegramCommandMenuRegistrar(telegramBot, botCommandService);
-        when(botCommandService.supportedCommands())
+        var registrar = new TelegramCommandMenuRegistrar(telegramBot, commandRegistry);
+        when(commandRegistry.supportedCommands())
                 .thenReturn(List.of(
                         new BotCommandDefinition("/start", "Начать работу"),
                         new BotCommandDefinition("/help", "Список доступных команд")));

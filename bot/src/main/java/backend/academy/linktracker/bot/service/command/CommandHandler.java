@@ -1,17 +1,12 @@
 package backend.academy.linktracker.bot.service.command;
 
+import backend.academy.linktracker.bot.service.BotCommandDefinition;
+import java.util.List;
+
 public interface CommandHandler {
     String command();
 
     String description();
 
-    String handle(CommandRequest request, CommandContext context);
-
-    default boolean isFallback() {
-        return false;
-    }
-
-    default int order() {
-        return 0;
-    }
+    String handle(CommandRequest request, List<BotCommandDefinition> supportedCommands);
 }

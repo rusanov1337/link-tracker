@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import backend.academy.linktracker.bot.properties.TelegramProperties;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
 import com.pengrad.telegrambot.model.Update;
@@ -29,8 +30,8 @@ class TelegramPollingListenerTest {
 
     @Test
     void startPollingRegistersUpdatesListener() {
-        var pollingListener =
-                new TelegramPollingListener(telegramBot, botCommandService, metrics(new SimpleMeterRegistry()));
+        var pollingListener = new TelegramPollingListener(
+                telegramBot, botCommandService, metrics(new SimpleMeterRegistry()), telegramProperties());
 
         pollingListener.startPolling();
 
@@ -40,7 +41,8 @@ class TelegramPollingListenerTest {
     @Test
     void processRetriesSendMessageAfterExecuteFailure() {
         var meterRegistry = new SimpleMeterRegistry();
-        var pollingListener = new TelegramPollingListener(telegramBot, botCommandService, metrics(meterRegistry));
+        var pollingListener = new TelegramPollingListener(
+                telegramBot, botCommandService, metrics(meterRegistry), telegramProperties());
 
         pollingListener.startPolling();
 
@@ -69,5 +71,11 @@ class TelegramPollingListenerTest {
 
     private BotMetricsService metrics(SimpleMeterRegistry meterRegistry) {
         return new BotMetricsService(meterRegistry);
+    }
+
+    private TelegramProperties telegramProperties() {
+        var properties = new TelegramProperties();
+        properties.setMaxSendAttempts(3);
+        return properties;
     }
 }

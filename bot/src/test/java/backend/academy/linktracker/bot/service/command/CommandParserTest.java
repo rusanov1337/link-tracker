@@ -25,4 +25,10 @@ class CommandParserTest {
         var parsed = commandParser.parse("hello world", 1L, 2L);
         assertTrue(parsed.isEmpty());
     }
+
+    @Test
+    void slashWithoutCommandIsIgnored() {
+        var parsed = commandParser.parse("/", 1L, 2L);
+        assertTrue(parsed.isEmpty());
+    }
 }

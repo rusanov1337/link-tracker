@@ -23,35 +23,25 @@ class CommandExecutionServiceTest {
                 1.0,
                 meterRegistry
                         .find("commands_total")
-                        .tag("type", "known")
+                        .tag("command", "/start")
+                        .tag("status", "success")
                         .counter()
                         .count());
         assertEquals(
                 1.0,
                 meterRegistry
                         .find("commands_total")
-                        .tag("type", "unknown")
+                        .tag("command", "/abracadabra")
+                        .tag("status", "failure")
                         .counter()
                         .count());
     }
 
-    @Test
-    void supportedCommandsDoesNotIncludeFallbackAndKeepsOrder() {
-        var service = commandExecutionService(new SimpleMeterRegistry());
-
-        var supportedCommands = service.supportedCommands();
-
-        assertEquals(2, supportedCommands.size());
-        assertEquals(StartCommandHandler.COMMAND, supportedCommands.getFirst().command());
-        assertEquals(
-                StartCommandHandler.DESCRIPTION, supportedCommands.getFirst().description());
-        assertEquals(HelpCommandHandler.COMMAND, supportedCommands.get(1).command());
-        assertEquals(HelpCommandHandler.DESCRIPTION, supportedCommands.get(1).description());
-    }
-
     private CommandExecutionService commandExecutionService(SimpleMeterRegistry meterRegistry) {
+        var unknownCommandHandler = new UnknownCommandHandler();
         var commandRegistry = new CommandRegistry(
-                List.of(new StartCommandHandler(), new HelpCommandHandler(), new UnknownCommandHandler()));
+                List.of(new StartCommandHandler(), new HelpCommandHandler(), unknownCommandHandler),
+                unknownCommandHandler);
         return new CommandExecutionService(commandRegistry, new BotMetricsService(meterRegistry));
     }
 }

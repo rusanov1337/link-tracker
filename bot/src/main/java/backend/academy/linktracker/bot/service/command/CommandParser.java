@@ -12,24 +12,14 @@ public class CommandParser {
         }
 
         var normalizedText = text.strip();
-        if (normalizedText.isEmpty() || !normalizedText.startsWith("/")) {
+        if (!normalizedText.matches("^/\\S+.*")) {
             return Optional.empty();
         }
 
-        int firstSpaceIndex = normalizedText.indexOf(' ');
-        var commandWithMention = firstSpaceIndex >= 0 ? normalizedText.substring(0, firstSpaceIndex) : normalizedText;
-        var arguments = firstSpaceIndex >= 0
-                ? normalizedText.substring(firstSpaceIndex + 1).strip()
-                : "";
-
-        int mentionSeparatorIndex = commandWithMention.indexOf('@');
-        var command = mentionSeparatorIndex >= 0
-                ? commandWithMention.substring(0, mentionSeparatorIndex)
-                : commandWithMention;
-
-        if (command.isBlank()) {
-            return Optional.empty();
-        }
+        var commandAndArguments = normalizedText.split("\\s+", 2);
+        var commandWithMention = commandAndArguments[0];
+        var arguments = commandAndArguments.length > 1 ? commandAndArguments[1].strip() : "";
+        var command = commandWithMention.split("@", 2)[0];
 
         return Optional.of(new CommandRequest(command, arguments, normalizedText, chatId, userId));
     }

@@ -6,7 +6,6 @@ import backend.academy.linktracker.bot.service.command.StartCommandHandler;
 import backend.academy.linktracker.bot.service.command.UnknownCommandHandler;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.request.SendMessage;
-import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,10 +24,6 @@ public class BotCommandService {
     public BotCommandService(CommandParser commandParser, CommandExecutionService commandExecutionService) {
         this.commandParser = commandParser;
         this.commandExecutionService = commandExecutionService;
-    }
-
-    public List<BotCommandDefinition> supportedCommands() {
-        return commandExecutionService.supportedCommands();
     }
 
     public Optional<SendMessage> createResponse(Update update) {

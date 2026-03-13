@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.properties;
 
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Positive;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import lombok.EqualsAndHashCode;
@@ -35,4 +36,7 @@ public class TelegramProperties {
     private boolean pollingEnabled = true;
 
     private boolean setMyCommandsEnabled = true;
+
+    @Positive
+    private int maxSendAttempts = 3;
 }
