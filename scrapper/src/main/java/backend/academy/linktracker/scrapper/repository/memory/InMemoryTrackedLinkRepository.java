@@ -127,7 +127,12 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     private Optional<String> canonicalPath(String host, List<String> segments) {
         return switch (host) {
             case "github.com" ->
-                segments.size() == 2 ? Optional.of("/" + segments.get(0) + "/" + segments.get(1)) : Optional.empty();
+                segments.size() == 2
+                        ? Optional.of("/"
+                                + segments.get(0).toLowerCase(Locale.ROOT)
+                                + "/"
+                                + segments.get(1).toLowerCase(Locale.ROOT))
+                        : Optional.empty();
             case "stackoverflow.com" -> canonicalStackoverflowPath(segments);
             default -> Optional.empty();
         };

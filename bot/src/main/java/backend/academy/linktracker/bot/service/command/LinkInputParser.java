@@ -76,11 +76,19 @@ public class LinkInputParser {
                 .filter(segment -> !segment.isEmpty())
                 .toList();
     }
+
     private String canonicalizeSupportedLink(URI uri, String host) {
         var scheme = uri.getScheme().toLowerCase(Locale.ROOT);
         var segments = pathSegments(uri);
         return switch (host) {
-            case "github.com" -> scheme + "://" + host + "/" + segments.get(0) + "/" + segments.get(1);
+            case "github.com" ->
+                scheme
+                        + "://"
+                        + host
+                        + "/"
+                        + segments.get(0).toLowerCase(Locale.ROOT)
+                        + "/"
+                        + segments.get(1).toLowerCase(Locale.ROOT);
             case "stackoverflow.com" -> scheme + "://" + host + "/questions/" + segments.get(1);
             default -> uri.toString();
         };

@@ -92,6 +92,16 @@ class ScrapperApiIntegrationTest {
     }
 
     @Test
+    void duplicateLinkTrackingIgnoresGithubOwnerAndRepoCase() throws Exception {
+        registerChat(1L);
+        assertEquals(200, addLink(1L, "https://github.com/User/Repo").statusCode());
+
+        var duplicateResponse = addLink(1L, "https://github.com/user/repo");
+        assertEquals(409, duplicateResponse.statusCode());
+        assertBodyContains(duplicateResponse, "\"code\"\\s*:\\s*\"409\"");
+    }
+
+    @Test
     void duplicateLinkTrackingIgnoresSupportedUrlDecorations() throws Exception {
         registerChat(1L);
         assertEquals(200, addLink(1L, "https://github.com/user/repo/").statusCode());
@@ -122,6 +132,19 @@ class ScrapperApiIntegrationTest {
         assertEquals(200, addLink(1L, "https://github.com/user/project").statusCode());
 
         var removeResponse = removeLink(1L, "HTTPS://GITHUB.COM/user/project");
+        assertEquals(200, removeResponse.statusCode());
+
+        var getResponse = send("GET", "/links", null, Map.of(TG_CHAT_HEADER, "1"));
+        assertEquals(200, getResponse.statusCode());
+        assertBodyContains(getResponse, "\"size\"\\s*:\\s*0");
+    }
+
+    @Test
+    void removeLinkMatchesGithubOwnerAndRepoCaseInsensitively() throws Exception {
+        registerChat(1L);
+        assertEquals(200, addLink(1L, "https://github.com/User/Project").statusCode());
+
+        var removeResponse = removeLink(1L, "https://github.com/user/project");
         assertEquals(200, removeResponse.statusCode());
 
         var getResponse = send("GET", "/links", null, Map.of(TG_CHAT_HEADER, "1"));

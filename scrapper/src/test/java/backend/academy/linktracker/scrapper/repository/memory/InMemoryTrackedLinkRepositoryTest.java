@@ -65,6 +65,20 @@ class InMemoryTrackedLinkRepositoryTest {
     }
 
     @Test
+    void createTreatsGithubOwnerAndRepoCaseInsensitively() {
+        var now = Instant.parse("2026-03-06T10:00:00Z");
+
+        var created = repository.create(URI.create("https://github.com/Org/Repo"), now);
+        var duplicate = repository.create(URI.create("https://github.com/org/repo"), now.plusSeconds(5));
+
+        assertEquals(created.id(), duplicate.id());
+        assertEquals("https://github.com/org/repo", created.url().toString());
+        assertTrue(
+                repository.findByUrl(URI.create("https://github.com/ORG/REPO")).isPresent());
+        assertEquals(1, repository.count());
+    }
+
+    @Test
     void updateChangesStoredEntity() {
         var now = Instant.parse("2026-03-06T10:00:00Z");
         var created = repository.create(URI.create("https://stackoverflow.com/questions/1"), now);

@@ -24,7 +24,7 @@ class LinkInputParserTest {
 
         assertTrue(github.isPresent());
         assertTrue(stackoverflow.isPresent());
-        assertEquals("https://github.com/User/Repo", github.orElseThrow());
+        assertEquals("https://github.com/user/repo", github.orElseThrow());
         assertEquals("https://stackoverflow.com/questions/12345", stackoverflow.orElseThrow());
     }
 
