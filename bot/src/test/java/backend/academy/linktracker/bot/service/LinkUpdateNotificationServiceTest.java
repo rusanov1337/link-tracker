@@ -62,6 +62,23 @@ class LinkUpdateNotificationServiceTest {
                 pendingLinkUpdateStore.findAll());
     }
 
+    @Test
+    void processDoesNotQueueDuplicatePendingUpdates() {
+        var telegramBot = mock(TelegramBot.class);
+        var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var service = new LinkUpdateNotificationService(telegramBot, pendingLinkUpdateStore);
+
+        when(telegramBot.execute(any())).thenReturn(null);
+
+        var update = new LinkUpdate(1L, "https://github.com/user/repo", "updated", List.of(22L));
+        service.process(update);
+        service.process(update);
+
+        assertEquals(
+                List.of(new PendingLinkUpdate(1L, 22L, "https://github.com/user/repo", "updated")),
+                pendingLinkUpdateStore.findAll());
+    }
+
     private SendResponse successResponse() {
         var response = mock(SendResponse.class);
         when(response.isOk()).thenReturn(true);

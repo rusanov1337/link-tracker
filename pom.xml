@@ -76,6 +76,7 @@
         <palantir-java-format.version>2.86.0</palantir-java-format.version>
         <pmd.version>7.21.0</pmd.version>
         <protobuf-maven-plugin.version>4.1.3</protobuf-maven-plugin.version>
+        <protobuf.skip>true</protobuf.skip>
         <spotbugs-findsecbugs-plugin.version>1.14.0</spotbugs-findsecbugs-plugin.version>
         <spotbugs-maven-plugin.version>${spotbugs.version}.2</spotbugs-maven-plugin.version>
         <spotbugs-slf4j-plugin.version>1.5.0</spotbugs-slf4j-plugin.version>
@@ -251,8 +252,9 @@
                     <artifactId>protobuf-maven-plugin</artifactId>
                     <version>${protobuf-maven-plugin.version}</version>
                     <configuration>
+                        <skip>${protobuf.skip}</skip>
                         <protoc>${protobuf-java.version}</protoc>
-                        <sanctionedExecutablePath>${java.io.tmpdir}</sanctionedExecutablePath>
+                        <sanctionedExecutablePath>${project.build.directory}/protobuf-maven-plugin</sanctionedExecutablePath>
                         <plugins>
                             <plugin kind="binary-maven">
                                 <groupId>io.grpc</groupId>
@@ -312,6 +314,10 @@
                         <printFailingErrors>true</printFailingErrors>
                         <linkXRef>false</linkXRef>
                         <outputDirectory>${project.reporting.outputDirectory}/pmd</outputDirectory>
+                        <excludes>
+                            <exclude>backend/academy/linktracker/grpc/*.java</exclude>
+                            <exclude>backend/academy/linktracker/grpc/**/*.java</exclude>
+                        </excludes>
                         <rulesets>
                             <ruleset>pmd.xml</ruleset>
                         </rulesets>

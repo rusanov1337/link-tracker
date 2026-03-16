@@ -2,6 +2,8 @@ package backend.academy.linktracker.bot.service;
 
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.springframework.stereotype.Component;
 
@@ -9,9 +11,14 @@ import org.springframework.stereotype.Component;
 public class PendingLinkUpdateStore {
 
     private final Queue<PendingLinkUpdate> pendingUpdates = new ConcurrentLinkedQueue<>();
+    private final Set<PendingLinkUpdate> pendingUpdatesIndex = ConcurrentHashMap.newKeySet();
 
     public void saveAll(List<PendingLinkUpdate> updates) {
-        pendingUpdates.addAll(updates);
+        for (var update : updates) {
+            if (pendingUpdatesIndex.add(update)) {
+                pendingUpdates.add(update);
+            }
+        }
     }
 
     public List<PendingLinkUpdate> findAll() {
@@ -19,10 +26,12 @@ public class PendingLinkUpdateStore {
     }
 
     public void remove(PendingLinkUpdate update) {
-        pendingUpdates.remove(update);
+        if (pendingUpdates.remove(update)) {
+            pendingUpdatesIndex.remove(update);
+        }
     }
 
     public int size() {
-        return pendingUpdates.size();
+        return pendingUpdatesIndex.size();
     }
 }
