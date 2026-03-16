@@ -27,8 +27,8 @@
     <modules>
         <module>ai-agent</module>
         <module>bot</module>
-        <module>scrapper</module>
         <module>build-report-aggregate</module>
+        <module>scrapper</module>
     </modules>
 
     <scm>
