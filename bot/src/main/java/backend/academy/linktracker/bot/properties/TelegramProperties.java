@@ -44,4 +44,7 @@ public class TelegramProperties {
 
     @DurationUnit(ChronoUnit.MILLIS)
     private Duration deliveryRetryInterval = Duration.ofMinutes(1);
+
+    @DurationUnit(ChronoUnit.MILLIS)
+    private Duration recentDeliveryDeduplicationTtl = Duration.ofSeconds(5);
 }

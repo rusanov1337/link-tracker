@@ -1,5 +1,6 @@
 package backend.academy.linktracker.bot.service;
 
+import backend.academy.linktracker.bot.service.command.CancelCommandHandler;
 import backend.academy.linktracker.bot.service.command.CommandExecutionService;
 import backend.academy.linktracker.bot.service.command.CommandParser;
 import backend.academy.linktracker.bot.service.command.StartCommandHandler;
@@ -51,12 +52,9 @@ public class BotCommandService {
 
         if (commandRequest.isPresent()) {
             var parsedCommand = commandRequest.orElseThrow();
-            if (TrackDialogService.CANCEL_COMMAND.equals(parsedCommand.command())) {
-                var cancelResponse = trackDialogService.cancel(chatId);
-                return Optional.of(new SendMessage(chatId, cancelResponse));
-            }
-
-            if (trackDialogService.isActive(chatId) && !TrackCommandHandler.COMMAND.equals(parsedCommand.command())) {
+            if (trackDialogService.isActive(chatId)
+                    && !TrackCommandHandler.COMMAND.equals(parsedCommand.command())
+                    && !CancelCommandHandler.COMMAND.equals(parsedCommand.command())) {
                 trackDialogService.cancel(chatId);
             }
 

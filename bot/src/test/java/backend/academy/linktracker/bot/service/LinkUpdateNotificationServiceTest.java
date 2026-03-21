@@ -3,9 +3,11 @@ package backend.academy.linktracker.bot.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
+import backend.academy.linktracker.bot.properties.TelegramProperties;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.response.SendResponse;
 import java.util.List;
@@ -17,7 +19,8 @@ class LinkUpdateNotificationServiceTest {
     void processStoresFailedDeliveriesForRetry() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
-        var service = new LinkUpdateNotificationService(telegramBot, pendingLinkUpdateStore);
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
         var successResponse = successResponse();
         var failureResponse = failureResponse();
 
@@ -37,7 +40,8 @@ class LinkUpdateNotificationServiceTest {
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         pendingLinkUpdateStore.saveAll(
                 List.of(new PendingLinkUpdate(1L, 22L, "https://github.com/user/repo", "updated")));
-        var service = new LinkUpdateNotificationService(telegramBot, pendingLinkUpdateStore);
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -51,7 +55,8 @@ class LinkUpdateNotificationServiceTest {
     void processStoresFailedDeliveriesWhenTelegramReturnsNullResponse() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
-        var service = new LinkUpdateNotificationService(telegramBot, pendingLinkUpdateStore);
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
 
         when(telegramBot.execute(any())).thenReturn(null);
 
@@ -66,7 +71,8 @@ class LinkUpdateNotificationServiceTest {
     void processDoesNotQueueDuplicatePendingUpdates() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
-        var service = new LinkUpdateNotificationService(telegramBot, pendingLinkUpdateStore);
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
 
         when(telegramBot.execute(any())).thenReturn(null);
 
@@ -77,6 +83,28 @@ class LinkUpdateNotificationServiceTest {
         assertEquals(
                 List.of(new PendingLinkUpdate(1L, 22L, "https://github.com/user/repo", "updated")),
                 pendingLinkUpdateStore.findAll());
+    }
+
+    @Test
+    void processSkipsRecentlyDeliveredUpdates() {
+        var telegramBot = mock(TelegramBot.class);
+        var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+        var successResponse = successResponse();
+
+        when(telegramBot.execute(any())).thenReturn(successResponse);
+
+        var update = new LinkUpdate(1L, "https://github.com/user/repo", "updated", List.of(22L));
+        service.process(update);
+        service.process(update);
+
+        verify(telegramBot).execute(any());
+        assertEquals(0, pendingLinkUpdateStore.size());
+    }
+
+    private RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore() {
+        return new RecentlyDeliveredLinkUpdateStore(new TelegramProperties());
     }
 
     private SendResponse successResponse() {

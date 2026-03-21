@@ -11,6 +11,7 @@ import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import backend.academy.linktracker.bot.service.command.CancelCommandHandler;
 import backend.academy.linktracker.bot.service.command.HelpCommandHandler;
 import backend.academy.linktracker.bot.service.command.ListCommandHandler;
 import backend.academy.linktracker.bot.service.command.StartCommandHandler;
@@ -105,6 +106,10 @@ class HelpCommandIntegrationTest {
 
     private String expectedHelpMessage() {
         return "Доступные команды:"
+                + System.lineSeparator()
+                + CancelCommandHandler.COMMAND
+                + " - "
+                + CancelCommandHandler.DESCRIPTION
                 + System.lineSeparator()
                 + HelpCommandHandler.COMMAND
                 + " - "

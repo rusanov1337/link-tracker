@@ -9,6 +9,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import backend.academy.linktracker.bot.service.PendingLinkUpdateStore;
+import backend.academy.linktracker.bot.service.RecentlyDeliveredLinkUpdateStore;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -38,12 +39,16 @@ class BotUpdatesApiIntegrationTest {
     @org.springframework.beans.factory.annotation.Autowired
     private PendingLinkUpdateStore pendingLinkUpdateStore;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore;
+
     private HttpClient httpClient;
 
     @BeforeEach
     void setUp() {
         this.httpClient =
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        recentlyDeliveredLinkUpdateStore.clear();
     }
 
     @Test

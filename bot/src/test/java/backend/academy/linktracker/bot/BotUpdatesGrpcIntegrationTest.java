@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import backend.academy.linktracker.bot.service.PendingLinkUpdateStore;
+import backend.academy.linktracker.bot.service.RecentlyDeliveredLinkUpdateStore;
 import backend.academy.linktracker.grpc.BotUpdatesServiceGrpc;
 import backend.academy.linktracker.grpc.LinkUpdateRequest;
 import io.grpc.ManagedChannel;
@@ -17,6 +18,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -41,6 +43,14 @@ class BotUpdatesGrpcIntegrationTest {
 
     @org.springframework.beans.factory.annotation.Autowired
     private PendingLinkUpdateStore pendingLinkUpdateStore;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore;
+
+    @BeforeEach
+    void setUp() {
+        recentlyDeliveredLinkUpdateStore.clear();
+    }
 
     @Test
     void validGrpcUpdateRequestSendsTelegramMessages() {

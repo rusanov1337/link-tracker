@@ -16,14 +16,26 @@ public class LinkUpdateNotificationService {
 
     private final TelegramBot telegramBot;
     private final PendingLinkUpdateStore pendingLinkUpdateStore;
+    private final RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore;
 
     public void process(LinkUpdate linkUpdate) {
         var pendingUpdates = new ArrayList<PendingLinkUpdate>();
         for (var chatId : linkUpdate.tgChatIds()) {
             var pendingUpdate =
                     new PendingLinkUpdate(linkUpdate.id(), chatId, linkUpdate.url(), linkUpdate.description());
+            if (recentlyDeliveredLinkUpdateStore.wasDeliveredRecently(pendingUpdate)) {
+                log.atInfo()
+                        .addKeyValue("operation", "skipDuplicateDeliveredUpdate")
+                        .addKeyValue("chatId", pendingUpdate.chatId())
+                        .addKeyValue("updateId", pendingUpdate.updateId())
+                        .addKeyValue("url", pendingUpdate.url())
+                        .log("Recently delivered update ignored");
+                continue;
+            }
             if (!sendUpdate(pendingUpdate)) {
                 pendingUpdates.add(pendingUpdate);
+            } else {
+                recentlyDeliveredLinkUpdateStore.markDelivered(pendingUpdate);
             }
         }
 
@@ -41,6 +53,7 @@ public class LinkUpdateNotificationService {
         for (var pendingUpdate : pendingUpdates) {
             if (sendUpdate(pendingUpdate)) {
                 pendingLinkUpdateStore.remove(pendingUpdate);
+                recentlyDeliveredLinkUpdateStore.markDelivered(pendingUpdate);
             }
         }
     }

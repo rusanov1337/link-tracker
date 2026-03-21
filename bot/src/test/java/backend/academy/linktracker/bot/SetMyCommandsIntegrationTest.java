@@ -60,6 +60,7 @@ class SetMyCommandsIntegrationTest {
 
         await().atMost(Duration.ofSeconds(10))
                 .untilAsserted(() -> verify(postRequestedFor(urlMatching("/bot[^/]+/setMyCommands"))
+                        .withRequestBody(containing("%2Fcancel"))
                         .withRequestBody(containing("%2Fstart"))
                         .withRequestBody(containing("%2Fhelp"))
                         .withRequestBody(containing("%2Ftrack"))
