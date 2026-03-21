@@ -20,6 +20,7 @@ import io.grpc.StatusRuntimeException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
@@ -41,10 +42,10 @@ import org.wiremock.spring.EnableWireMock;
         })
 class BotUpdatesGrpcIntegrationTest {
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     private PendingLinkUpdateStore pendingLinkUpdateStore;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     private RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore;
 
     @BeforeEach
