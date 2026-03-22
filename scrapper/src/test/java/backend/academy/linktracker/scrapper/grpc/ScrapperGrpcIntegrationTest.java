@@ -14,10 +14,14 @@ import io.grpc.StatusRuntimeException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(
         properties = {"app.scheduler.enabled=false", "app.grpc.server.enabled=true", "app.grpc.server.port=19091"})
+@Import(backend.academy.linktracker.scrapper.TestcontainersConfiguration.class)
+@Testcontainers(disabledWithoutDocker = true)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ScrapperGrpcIntegrationTest {
 

@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: scrapper
+  datasource:
+    url: ${SCRAPPER_DB_URL:jdbc:postgresql://localhost:5432/link_tracker}
+    username: ${SCRAPPER_DB_USERNAME:postgres}
+    password: ${SCRAPPER_DB_PASSWORD:postgres}
+  liquibase:
+    change-log: classpath:/migrations/master.xml
+    enabled: true
 
 app:
   grpc:
