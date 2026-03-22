@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.repository.orm.OrmChatRepository;
@@ -21,7 +22,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-public abstract class RepositoryIntegrationTestSupport {
+public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSupport {
 
     @Autowired
     protected ChatRepository chatRepository;

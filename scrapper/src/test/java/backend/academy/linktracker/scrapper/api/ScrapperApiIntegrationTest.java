@@ -3,6 +3,7 @@ package backend.academy.linktracker.scrapper.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -19,11 +20,17 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "app.scheduler.enabled=false")
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "app.scheduler.enabled=false",
+            "springdoc.api-docs.enabled=false",
+            "springdoc.swagger-ui.enabled=false"
+        })
 @Import(backend.academy.linktracker.scrapper.TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class ScrapperApiIntegrationTest {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class ScrapperApiIntegrationTest extends DatabaseCleanupSupport {
 
     private static final String TG_CHAT_HEADER = "Tg-Chat-Id";
 

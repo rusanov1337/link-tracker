@@ -7,6 +7,7 @@ import backend.academy.linktracker.grpc.AddLinkRequest;
 import backend.academy.linktracker.grpc.ListLinksRequest;
 import backend.academy.linktracker.grpc.RegisterChatRequest;
 import backend.academy.linktracker.grpc.ScrapperServiceGrpc;
+import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
@@ -19,11 +20,17 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(
-        properties = {"app.scheduler.enabled=false", "app.grpc.server.enabled=true", "app.grpc.server.port=19091"})
+        properties = {
+            "app.scheduler.enabled=false",
+            "app.grpc.server.enabled=true",
+            "app.grpc.server.port=19091",
+            "springdoc.api-docs.enabled=false",
+            "springdoc.swagger-ui.enabled=false"
+        })
 @Import(backend.academy.linktracker.scrapper.TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class ScrapperGrpcIntegrationTest {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class ScrapperGrpcIntegrationTest extends DatabaseCleanupSupport {
 
     @Test
     void addAndListLinksViaGrpc() {

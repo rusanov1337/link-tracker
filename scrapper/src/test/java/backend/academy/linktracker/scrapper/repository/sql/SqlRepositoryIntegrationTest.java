@@ -11,10 +11,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(properties = {"app.scheduler.enabled=false", "app.database.access-type=SQL"})
+@SpringBootTest(
+        properties = {
+            "app.scheduler.enabled=false",
+            "app.database.access-type=SQL",
+            "springdoc.api-docs.enabled=false",
+            "springdoc.swagger-ui.enabled=false"
+        })
 @Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class SqlRepositoryIntegrationTest extends RepositoryIntegrationTestSupport {
 
     @Override

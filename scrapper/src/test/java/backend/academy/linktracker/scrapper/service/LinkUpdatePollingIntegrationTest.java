@@ -9,6 +9,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 
+import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
 import backend.academy.linktracker.scrapper.api.dto.AddLinkRequest;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -20,13 +21,18 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.wiremock.spring.EnableWireMock;
 
-@SpringBootTest(properties = "app.scheduler.enabled=false")
+@SpringBootTest(
+        properties = {
+            "app.scheduler.enabled=false",
+            "springdoc.api-docs.enabled=false",
+            "springdoc.swagger-ui.enabled=false"
+        })
 @Import(backend.academy.linktracker.scrapper.TestcontainersConfiguration.class)
 @ActiveProfiles("test")
 @EnableWireMock
 @Testcontainers(disabledWithoutDocker = true)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class LinkUpdatePollingIntegrationTest {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
 
     @Autowired
     private LinkUpdatePollingService linkUpdatePollingService;
