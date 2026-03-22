@@ -15,9 +15,11 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @ConditionalOnProperty(prefix = "app.database", name = "access-type", havingValue = "ORM")
+@Transactional
 public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository {
 
     @PersistenceContext

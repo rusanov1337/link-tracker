@@ -12,9 +12,11 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @ConditionalOnProperty(prefix = "app.database", name = "access-type", havingValue = "ORM")
+@Transactional
 public class OrmTrackedLinkRepository implements TrackedLinkRepository {
 
     @PersistenceContext
@@ -87,11 +89,12 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     private Optional<LinkEntity> findEntityByUrl(URI canonicalUrl) {
-        return entityManager
+        var links = entityManager
                 .createQuery("select l from LinkEntity l where l.url = :url", LinkEntity.class)
                 .setParameter("url", canonicalUrl.toString())
-                .getResultStream()
-                .findFirst();
+                .setMaxResults(1)
+                .getResultList();
+        return links.isEmpty() ? Optional.empty() : Optional.of(links.getFirst());
     }
 
     private TrackedLink toDomain(LinkEntity entity) {

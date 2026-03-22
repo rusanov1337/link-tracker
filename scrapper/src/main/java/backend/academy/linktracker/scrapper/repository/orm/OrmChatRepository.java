@@ -9,9 +9,11 @@ import java.time.Instant;
 import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @ConditionalOnProperty(prefix = "app.database", name = "access-type", havingValue = "ORM")
+@Transactional
 public class OrmChatRepository implements ChatRepository {
 
     @PersistenceContext
