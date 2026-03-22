@@ -1,6 +1,9 @@
 package backend.academy.linktracker.bot.properties;
 
+import static backend.academy.linktracker.bot.validation.ValidationPatterns.HTTP_URL;
+
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -8,7 +11,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.validator.constraints.URL;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.convert.DurationUnit;
 import org.springframework.validation.annotation.Validated;
@@ -22,7 +24,7 @@ import org.springframework.validation.annotation.Validated;
 public class TelegramProperties {
 
     @NotEmpty
-    @URL
+    @Pattern(regexp = HTTP_URL)
     private String url;
 
     @NotEmpty

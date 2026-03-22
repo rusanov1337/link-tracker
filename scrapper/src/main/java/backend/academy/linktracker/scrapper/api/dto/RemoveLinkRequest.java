@@ -1,6 +1,9 @@
 package backend.academy.linktracker.scrapper.api.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import org.hibernate.validator.constraints.URL;
+import static backend.academy.linktracker.scrapper.validation.ValidationPatterns.HTTP_URL;
 
-public record RemoveLinkRequest(@NotBlank @URL String link) {}
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+
+public record RemoveLinkRequest(
+        @NotBlank @Pattern(regexp = HTTP_URL) String link) {}
