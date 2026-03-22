@@ -142,6 +142,7 @@ public abstract class RepositoryIntegrationTestSupport {
                 linkSubscriptionRepository.add(new LinkSubscription(1L, trackedLink.id(), List.of("work"), List.of())));
 
         assertEquals(List.of("work"), subscriptionTagRepository.findBySubscription(1L, trackedLink.id()));
+        assertFalse(subscriptionTagRepository.add(1L, trackedLink.id() + 1, "ghost"));
         assertTrue(subscriptionTagRepository.add(1L, trackedLink.id(), " bug "));
         assertFalse(subscriptionTagRepository.add(1L, trackedLink.id(), "bug"));
         assertFalse(subscriptionTagRepository.add(1L, trackedLink.id(), "   "));

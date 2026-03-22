@@ -6,9 +6,11 @@ import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @ConditionalOnProperty(prefix = "app.database", name = "access-type", havingValue = "SQL", matchIfMissing = true)
+@Transactional
 public class SqlSubscriptionTagRepository implements SubscriptionTagRepository {
 
     private final JdbcClient jdbcClient;
@@ -27,7 +29,12 @@ public class SqlSubscriptionTagRepository implements SubscriptionTagRepository {
         return jdbcClient
                         .sql("""
                     insert into subscription_tags (chat_id, link_id, tag)
-                    values (:chatId, :linkId, :tag)
+                    select :chatId, :linkId, :tag
+                    where exists(
+                        select 1
+                        from subscriptions
+                        where chat_id = :chatId and link_id = :linkId
+                    )
                     on conflict (chat_id, link_id, tag) do nothing
                     """)
                         .param("chatId", chatId)
@@ -56,8 +63,7 @@ public class SqlSubscriptionTagRepository implements SubscriptionTagRepository {
             return false;
         }
 
-        add(chatId, linkId, newValue);
-        return true;
+        return add(chatId, linkId, newValue) || exists(chatId, linkId, newValue);
     }
 
     @Override
