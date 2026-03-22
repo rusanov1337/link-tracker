@@ -9,6 +9,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class LinkInputParser {
 
+    private static final String HTTP_SCHEME = "http";
+    private static final String HTTPS_SCHEME = "https";
+    private static final String GITHUB_HOST = "github.com";
+    private static final String STACKOVERFLOW_HOST = "stackoverflow.com";
+    private static final String STACKOVERFLOW_QUESTIONS_PATH = "questions";
+    private static final String STACKOVERFLOW_SHORT_QUESTION_PATH = "q";
+
     public Optional<String> parseHttpUrl(String raw) {
         if (raw == null) {
             return Optional.empty();
@@ -26,7 +33,7 @@ public class LinkInputParser {
             }
 
             var scheme = uri.getScheme().toLowerCase(Locale.ROOT);
-            if (!scheme.equals("http") && !scheme.equals("https")) {
+            if (!scheme.equals(HTTP_SCHEME) && !scheme.equals(HTTPS_SCHEME)) {
                 return Optional.empty();
             }
 
@@ -43,8 +50,8 @@ public class LinkInputParser {
 
     private boolean isSupportedLink(String host, URI uri) {
         return switch (host) {
-            case "github.com" -> isGithubRepository(uri);
-            case "stackoverflow.com" -> isStackoverflowQuestion(uri);
+            case GITHUB_HOST -> isGithubRepository(uri);
+            case STACKOVERFLOW_HOST -> isStackoverflowQuestion(uri);
             default -> false;
         };
     }
@@ -59,11 +66,11 @@ public class LinkInputParser {
             return false;
         }
 
-        if ("questions".equals(segments.getFirst())) {
+        if (STACKOVERFLOW_QUESTIONS_PATH.equals(segments.getFirst())) {
             return isNumeric(segments.get(1));
         }
 
-        return "q".equals(segments.getFirst()) && isNumeric(segments.get(1));
+        return STACKOVERFLOW_SHORT_QUESTION_PATH.equals(segments.getFirst()) && isNumeric(segments.get(1));
     }
 
     private boolean isNumeric(String value) {
@@ -81,7 +88,7 @@ public class LinkInputParser {
         var scheme = uri.getScheme().toLowerCase(Locale.ROOT);
         var segments = pathSegments(uri);
         return switch (host) {
-            case "github.com" ->
+            case GITHUB_HOST ->
                 scheme
                         + "://"
                         + host
@@ -89,7 +96,8 @@ public class LinkInputParser {
                         + segments.get(0).toLowerCase(Locale.ROOT)
                         + "/"
                         + segments.get(1).toLowerCase(Locale.ROOT);
-            case "stackoverflow.com" -> scheme + "://" + host + "/questions/" + segments.get(1);
+            case STACKOVERFLOW_HOST ->
+                scheme + "://" + host + "/" + STACKOVERFLOW_QUESTIONS_PATH + "/" + segments.get(1);
             default -> uri.toString();
         };
     }

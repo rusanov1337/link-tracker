@@ -116,16 +116,10 @@ public class GrpcScrapperClient implements ScrapperClient {
             description = "Scrapper gRPC error";
         }
         return new ScrapperClientException(
-                toHttpStatusCode(exception.getStatus()), resolveErrorCode(exception), description, exception);
-    }
-
-    private int toHttpStatusCode(Status status) {
-        return switch (status.getCode()) {
-            case INVALID_ARGUMENT -> 400;
-            case NOT_FOUND -> 404;
-            case ALREADY_EXISTS -> 409;
-            default -> 503;
-        };
+                GrpcStatusCodeAdapter.toStatusCode(exception.getStatus()),
+                resolveErrorCode(exception),
+                description,
+                exception);
     }
 
     private String resolveErrorCode(StatusRuntimeException exception) {
