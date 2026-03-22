@@ -7,9 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import org.springframework.stereotype.Repository;
 
-@Repository
 public class InMemoryChatRepository implements ChatRepository {
 
     private final ConcurrentMap<Long, Chat> chatsById = new ConcurrentHashMap<>();

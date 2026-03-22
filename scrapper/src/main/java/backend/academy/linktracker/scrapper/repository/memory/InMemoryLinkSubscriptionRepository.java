@@ -7,9 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import org.springframework.stereotype.Repository;
 
-@Repository
 public class InMemoryLinkSubscriptionRepository implements LinkSubscriptionRepository {
 
     private final ConcurrentMap<SubscriptionKey, LinkSubscription> subscriptionsByKey = new ConcurrentHashMap<>();
