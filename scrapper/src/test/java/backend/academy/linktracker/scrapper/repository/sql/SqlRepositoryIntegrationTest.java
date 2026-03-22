@@ -4,6 +4,7 @@ import backend.academy.linktracker.scrapper.TestcontainersConfiguration;
 import backend.academy.linktracker.scrapper.repository.ChatRepository;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.RepositoryIntegrationTestSupport;
+import backend.academy.linktracker.scrapper.repository.SubscriptionTagRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -29,5 +30,10 @@ class SqlRepositoryIntegrationTest extends RepositoryIntegrationTestSupport {
     @Override
     protected Class<? extends LinkSubscriptionRepository> expectedLinkSubscriptionRepositoryType() {
         return sqlLinkSubscriptionRepository();
+    }
+
+    @Override
+    protected Class<? extends SubscriptionTagRepository> expectedSubscriptionTagRepositoryType() {
+        return sqlSubscriptionTagRepository();
     }
 }
