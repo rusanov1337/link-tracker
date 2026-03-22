@@ -32,6 +32,7 @@ app:
   scheduler:
     enabled: true
     interval: 60000
+    batch-size: ${SCRAPPER_SCHEDULER_BATCH_SIZE:500}
   stackoverflow:
     base-url: ${STACKOVERFLOW_BASE_URL:https://api.stackexchange.com}
     site: ${STACKOVERFLOW_SITE:stackoverflow}

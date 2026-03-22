@@ -3,6 +3,7 @@ package backend.academy.linktracker.scrapper.service;
 import backend.academy.linktracker.scrapper.client.bot.BotUpdatesClient;
 import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
+import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import java.time.Instant;
@@ -22,28 +23,42 @@ public class LinkUpdatePollingService {
     private final LinkSubscriptionRepository linkSubscriptionRepository;
     private final List<ExternalLinkClient> externalLinkClients;
     private final BotUpdatesClient botUpdatesClient;
+    private final SchedulerProperties schedulerProperties;
 
     public LinkUpdatePollingService(
             TrackedLinkRepository trackedLinkRepository,
             LinkSubscriptionRepository linkSubscriptionRepository,
             List<ExternalLinkClient> externalLinkClients,
-            BotUpdatesClient botUpdatesClient) {
+            BotUpdatesClient botUpdatesClient,
+            SchedulerProperties schedulerProperties) {
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
         this.externalLinkClients = externalLinkClients;
         this.botUpdatesClient = botUpdatesClient;
+        this.schedulerProperties = schedulerProperties;
     }
 
     public void checkUpdates() {
-        var links = trackedLinkRepository.findAll();
         var checkedAt = Instant.now();
-        for (var trackedLink : links) {
-            checkSingleLink(trackedLink, checkedAt);
+        var checkedLinksCount = 0;
+        long afterId = 0;
+        while (true) {
+            var links = trackedLinkRepository.findPageToCheck(checkedAt, afterId, schedulerProperties.getBatchSize());
+            if (links.isEmpty()) {
+                break;
+            }
+
+            for (var trackedLink : links) {
+                checkSingleLink(trackedLink, checkedAt);
+            }
+
+            checkedLinksCount += links.size();
+            afterId = links.getLast().id();
         }
 
         LOGGER.atInfo()
                 .addKeyValue("operation", "checkUpdates")
-                .addKeyValue("linksChecked", links.size())
+                .addKeyValue("linksChecked", checkedLinksCount)
                 .log("Links check finished");
     }
 

@@ -50,6 +50,16 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
+        return linksById.values().stream()
+                .filter(link -> !link.lastCheckedAt().isAfter(checkedBefore))
+                .filter(link -> link.id() > afterId)
+                .sorted(Comparator.comparingLong(TrackedLink::id))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public List<TrackedLink> findAll() {
         return linksById.values().stream()
                 .sorted(Comparator.comparingLong(TrackedLink::id))

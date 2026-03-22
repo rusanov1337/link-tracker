@@ -6,11 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
+import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.repository.orm.OrmChatRepository;
 import backend.academy.linktracker.scrapper.repository.orm.OrmLinkSubscriptionRepository;
+import backend.academy.linktracker.scrapper.repository.orm.OrmSubscriptionTagRepository;
 import backend.academy.linktracker.scrapper.repository.orm.OrmTrackedLinkRepository;
 import backend.academy.linktracker.scrapper.repository.sql.SqlChatRepository;
 import backend.academy.linktracker.scrapper.repository.sql.SqlLinkSubscriptionRepository;
+import backend.academy.linktracker.scrapper.repository.sql.SqlSubscriptionTagRepository;
 import backend.academy.linktracker.scrapper.repository.sql.SqlTrackedLinkRepository;
 import java.net.URI;
 import java.time.Instant;
@@ -29,11 +32,15 @@ public abstract class RepositoryIntegrationTestSupport {
     @Autowired
     protected LinkSubscriptionRepository linkSubscriptionRepository;
 
+    @Autowired
+    protected SubscriptionTagRepository subscriptionTagRepository;
+
     @Test
     void usesConfiguredRepositoryImplementation() {
         assertInstanceOf(expectedChatRepositoryType(), chatRepository);
         assertInstanceOf(expectedTrackedLinkRepositoryType(), trackedLinkRepository);
         assertInstanceOf(expectedLinkSubscriptionRepositoryType(), linkSubscriptionRepository);
+        assertInstanceOf(expectedSubscriptionTagRepositoryType(), subscriptionTagRepository);
     }
 
     @Test
@@ -76,6 +83,29 @@ public abstract class RepositoryIntegrationTestSupport {
     }
 
     @Test
+    void trackedLinkPageToCheckReturnsStableBatch() {
+        var first = trackedLinkRepository.create(
+                URI.create("https://github.com/org/one"), Instant.parse("2026-03-22T10:00:00Z"));
+        var second = trackedLinkRepository.create(
+                URI.create("https://github.com/org/two"), Instant.parse("2026-03-22T10:00:01Z"));
+        var third = trackedLinkRepository.create(
+                URI.create("https://github.com/org/three"), Instant.parse("2026-03-22T10:00:02Z"));
+        var skipped = trackedLinkRepository.create(
+                URI.create("https://github.com/org/four"), Instant.parse("2026-03-22T10:00:03Z"));
+        trackedLinkRepository.update(skipped.withLastCheckedAt(Instant.parse("2026-03-22T10:01:00Z")));
+
+        var firstPage = trackedLinkRepository.findPageToCheck(Instant.parse("2026-03-22T10:00:30Z"), 0, 2);
+        var secondPage = trackedLinkRepository.findPageToCheck(
+                Instant.parse("2026-03-22T10:00:30Z"), firstPage.getLast().id(), 2);
+
+        assertEquals(
+                List.of(first.id(), second.id()),
+                firstPage.stream().map(TrackedLink::id).toList());
+        assertEquals(
+                List.of(third.id()), secondPage.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
     void subscriptionCrudPersistsTagsAndFilters() {
         assertTrue(chatRepository.add(1L));
         var trackedLink = trackedLinkRepository.create(
@@ -103,11 +133,38 @@ public abstract class RepositoryIntegrationTestSupport {
         assertFalse(linkSubscriptionRepository.remove(1L, trackedLink.id()));
     }
 
+    @Test
+    void subscriptionTagCrudWorksSeparately() {
+        assertTrue(chatRepository.add(1L));
+        var trackedLink = trackedLinkRepository.create(
+                URI.create("https://github.com/org/repo"), Instant.parse("2026-03-22T10:00:00Z"));
+        assertTrue(
+                linkSubscriptionRepository.add(new LinkSubscription(1L, trackedLink.id(), List.of("work"), List.of())));
+
+        assertEquals(List.of("work"), subscriptionTagRepository.findBySubscription(1L, trackedLink.id()));
+        assertTrue(subscriptionTagRepository.add(1L, trackedLink.id(), " bug "));
+        assertFalse(subscriptionTagRepository.add(1L, trackedLink.id(), "bug"));
+        assertFalse(subscriptionTagRepository.add(1L, trackedLink.id(), "   "));
+        assertEquals(List.of("bug", "work"), subscriptionTagRepository.findBySubscription(1L, trackedLink.id()));
+
+        assertTrue(subscriptionTagRepository.update(1L, trackedLink.id(), "work", "docs"));
+        assertEquals(List.of("bug", "docs"), subscriptionTagRepository.findBySubscription(1L, trackedLink.id()));
+
+        assertTrue(subscriptionTagRepository.update(1L, trackedLink.id(), "docs", "bug"));
+        assertEquals(List.of("bug"), subscriptionTagRepository.findBySubscription(1L, trackedLink.id()));
+        assertTrue(subscriptionTagRepository.remove(1L, trackedLink.id(), "bug"));
+        assertFalse(subscriptionTagRepository.remove(1L, trackedLink.id(), "bug"));
+        assertEquals(List.of(), subscriptionTagRepository.findBySubscription(1L, trackedLink.id()));
+        assertEquals(0, subscriptionTagRepository.count());
+    }
+
     protected abstract Class<? extends ChatRepository> expectedChatRepositoryType();
 
     protected abstract Class<? extends TrackedLinkRepository> expectedTrackedLinkRepositoryType();
 
     protected abstract Class<? extends LinkSubscriptionRepository> expectedLinkSubscriptionRepositoryType();
+
+    protected abstract Class<? extends SubscriptionTagRepository> expectedSubscriptionTagRepositoryType();
 
     protected final Class<? extends ChatRepository> sqlChatRepository() {
         return SqlChatRepository.class;
@@ -121,6 +178,10 @@ public abstract class RepositoryIntegrationTestSupport {
         return SqlLinkSubscriptionRepository.class;
     }
 
+    protected final Class<? extends SubscriptionTagRepository> sqlSubscriptionTagRepository() {
+        return SqlSubscriptionTagRepository.class;
+    }
+
     protected final Class<? extends ChatRepository> ormChatRepository() {
         return OrmChatRepository.class;
     }
@@ -131,5 +192,9 @@ public abstract class RepositoryIntegrationTestSupport {
 
     protected final Class<? extends LinkSubscriptionRepository> ormLinkSubscriptionRepository() {
         return OrmLinkSubscriptionRepository.class;
+    }
+
+    protected final Class<? extends SubscriptionTagRepository> ormSubscriptionTagRepository() {
+        return OrmSubscriptionTagRepository.class;
     }
 }

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class InMemoryTrackedLinkRepositoryTest {
@@ -89,6 +90,28 @@ class InMemoryTrackedLinkRepositoryTest {
         var stored = repository.findById(created.id()).orElseThrow();
         assertEquals(updated.lastCheckedAt(), stored.lastCheckedAt());
         assertEquals(updated.lastUpdatedAt(), stored.lastUpdatedAt());
+    }
+
+    @Test
+    void findPageToCheckReturnsLimitedBatch() {
+        var first = repository.create(URI.create("https://github.com/org/one"), Instant.parse("2026-03-06T10:00:00Z"));
+        var second = repository.create(URI.create("https://github.com/org/two"), Instant.parse("2026-03-06T10:00:01Z"));
+        var third =
+                repository.create(URI.create("https://github.com/org/three"), Instant.parse("2026-03-06T10:00:02Z"));
+        var skipped =
+                repository.create(URI.create("https://github.com/org/four"), Instant.parse("2026-03-06T10:00:03Z"));
+        repository.update(skipped.withLastCheckedAt(Instant.parse("2026-03-06T10:01:00Z")));
+
+        var firstPage = repository.findPageToCheck(Instant.parse("2026-03-06T10:00:30Z"), 0, 2);
+        var secondPage = repository.findPageToCheck(
+                Instant.parse("2026-03-06T10:00:30Z"), firstPage.getLast().id(), 2);
+
+        assertEquals(2, firstPage.size());
+        assertEquals(
+                List.of(first.id(), second.id()),
+                firstPage.stream().map(TrackedLink::id).toList());
+        assertEquals(
+                List.of(third.id()), secondPage.stream().map(TrackedLink::id).toList());
     }
 
     @Test

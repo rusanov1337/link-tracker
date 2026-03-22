@@ -47,6 +47,25 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
+        return entityManager
+                .createQuery("""
+                        select l
+                        from LinkEntity l
+                        where l.lastCheckedAt <= :checkedBefore
+                          and l.id > :afterId
+                        order by l.id
+                        """, LinkEntity.class)
+                .setParameter("checkedBefore", checkedBefore)
+                .setParameter("afterId", afterId)
+                .setMaxResults(limit)
+                .getResultList()
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<TrackedLink> findAll() {
         return entityManager
                 .createQuery("select l from LinkEntity l order by l.id", LinkEntity.class)

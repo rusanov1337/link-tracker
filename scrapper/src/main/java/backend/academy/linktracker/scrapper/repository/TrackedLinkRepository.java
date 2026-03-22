@@ -14,6 +14,8 @@ public interface TrackedLinkRepository {
 
     Optional<TrackedLink> findByUrl(URI url);
 
+    List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit);
+
     List<TrackedLink> findAll();
 
     void update(TrackedLink trackedLink);

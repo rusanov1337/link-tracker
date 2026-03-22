@@ -73,6 +73,24 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
+        return jdbcClient
+                .sql("""
+                    select id, url, created_at, last_checked_at, last_updated_at
+                    from links
+                    where last_checked_at <= :checkedBefore
+                      and id > :afterId
+                    order by id
+                    limit :limit
+                    """)
+                .param("checkedBefore", Timestamp.from(checkedBefore))
+                .param("afterId", afterId)
+                .param("limit", limit)
+                .query(trackedLinkRowMapper)
+                .list();
+    }
+
+    @Override
     public List<TrackedLink> findAll() {
         return jdbcClient.sql("""
                     select id, url, created_at, last_checked_at, last_updated_at

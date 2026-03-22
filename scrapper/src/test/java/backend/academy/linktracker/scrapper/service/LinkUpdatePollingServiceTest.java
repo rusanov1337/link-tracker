@@ -7,6 +7,7 @@ import backend.academy.linktracker.scrapper.client.bot.BotUpdatesClient;
 import backend.academy.linktracker.scrapper.client.bot.BotUpdatesClientException;
 import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
+import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryLinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryTrackedLinkRepository;
 import java.net.URI;
@@ -29,8 +30,8 @@ class LinkUpdatePollingServiceTest {
         var externalClient =
                 new StubExternalLinkClient(trackedLink.url(), Optional.of(Instant.parse("2025-01-02T00:00:00Z")));
         var botClient = new RecordingBotUpdatesClient(false);
-        var service = new LinkUpdatePollingService(
-                trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient);
+        var service =
+                newService(trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient, 100);
 
         service.checkUpdates();
 
@@ -51,8 +52,8 @@ class LinkUpdatePollingServiceTest {
 
         var externalClient = new StubExternalLinkClient(trackedLink.url(), Optional.of(initialUpdatedAt));
         var botClient = new RecordingBotUpdatesClient(false);
-        var service = new LinkUpdatePollingService(
-                trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient);
+        var service =
+                newService(trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient, 100);
 
         service.checkUpdates();
 
@@ -73,8 +74,8 @@ class LinkUpdatePollingServiceTest {
         var externalClient =
                 new StubExternalLinkClient(trackedLink.url(), Optional.of(Instant.parse("2025-03-05T00:00:00Z")));
         var botClient = new RecordingBotUpdatesClient(true);
-        var service = new LinkUpdatePollingService(
-                trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient);
+        var service =
+                newService(trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient, 100);
 
         service.checkUpdates();
 
@@ -100,13 +101,58 @@ class LinkUpdatePollingServiceTest {
                 new StubExternalLinkClient(changedLink.url(), Optional.of(Instant.parse("2025-04-02T00:00:00Z")));
         var unchangedClient = new StubExternalLinkClient(unchangedLink.url(), Optional.of(initialUpdatedAt));
         var botClient = new RecordingBotUpdatesClient(false);
-        var service = new LinkUpdatePollingService(
-                trackedLinkRepository, linkSubscriptionRepository, List.of(changedClient, unchangedClient), botClient);
+        var service = newService(
+                trackedLinkRepository,
+                linkSubscriptionRepository,
+                List.of(changedClient, unchangedClient),
+                botClient,
+                100);
 
         service.checkUpdates();
 
         assertEquals(1, botClient.notifications.size());
         assertEquals(List.of(11L, 22L), botClient.notifications.getFirst().tgChatIds());
+    }
+
+    @Test
+    void checkUpdatesProcessesAllLinksAcrossBatches() {
+        var trackedLinkRepository = new InMemoryTrackedLinkRepository();
+        var linkSubscriptionRepository = new InMemoryLinkSubscriptionRepository();
+        var initialUpdatedAt = Instant.parse("2025-05-01T00:00:00Z");
+        var first = trackedLinkRepository.create(URI.create("https://github.com/user/one"), initialUpdatedAt);
+        var second = trackedLinkRepository.create(URI.create("https://github.com/user/two"), initialUpdatedAt);
+        var third = trackedLinkRepository.create(URI.create("https://github.com/user/three"), initialUpdatedAt);
+
+        linkSubscriptionRepository.add(new LinkSubscription(11L, first.id(), List.of(), List.of()));
+        linkSubscriptionRepository.add(new LinkSubscription(22L, second.id(), List.of(), List.of()));
+        linkSubscriptionRepository.add(new LinkSubscription(33L, third.id(), List.of(), List.of()));
+
+        var botClient = new RecordingBotUpdatesClient(false);
+        var service = newService(
+                trackedLinkRepository,
+                linkSubscriptionRepository,
+                List.of(
+                        new StubExternalLinkClient(first.url(), Optional.of(initialUpdatedAt.plusSeconds(60))),
+                        new StubExternalLinkClient(second.url(), Optional.of(initialUpdatedAt.plusSeconds(60))),
+                        new StubExternalLinkClient(third.url(), Optional.of(initialUpdatedAt.plusSeconds(60)))),
+                botClient,
+                2);
+
+        service.checkUpdates();
+
+        assertEquals(3, botClient.notifications.size());
+    }
+
+    private LinkUpdatePollingService newService(
+            InMemoryTrackedLinkRepository trackedLinkRepository,
+            InMemoryLinkSubscriptionRepository linkSubscriptionRepository,
+            List<ExternalLinkClient> externalClients,
+            RecordingBotUpdatesClient botClient,
+            int batchSize) {
+        var schedulerProperties = new SchedulerProperties();
+        schedulerProperties.setBatchSize(batchSize);
+        return new LinkUpdatePollingService(
+                trackedLinkRepository, linkSubscriptionRepository, externalClients, botClient, schedulerProperties);
     }
 
     private record Notification(long id, URI url, String description, List<Long> tgChatIds) {}
