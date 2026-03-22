@@ -8,11 +8,17 @@ spring:
     url: ${SCRAPPER_DB_URL:jdbc:postgresql://localhost:5432/link_tracker}
     username: ${SCRAPPER_DB_USERNAME:postgres}
     password: ${SCRAPPER_DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
   liquibase:
     change-log: classpath:/migrations/master.xml
     enabled: true
 
 app:
+  database:
+    access-type: ${SCRAPPER_DB_ACCESS_TYPE:SQL}
   grpc:
     server:
       enabled: ${SCRAPPER_GRPC_SERVER_ENABLED:false}

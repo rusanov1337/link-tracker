@@ -21,6 +21,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ScrapperLinkService {
@@ -43,6 +44,7 @@ public class ScrapperLinkService {
         this.externalLinkClients = externalLinkClients;
     }
 
+    @Transactional
     public void registerChat(long chatId) {
         if (!chatRepository.add(chatId)) {
             throw new ChatAlreadyExistsException(chatId);
@@ -55,14 +57,14 @@ public class ScrapperLinkService {
                 .log("Chat registered");
     }
 
+    @Transactional
     public void deleteChat(long chatId) {
+        var subscriptions = linkSubscriptionRepository.findByChatId(chatId);
         if (!chatRepository.remove(chatId)) {
             throw new ChatNotFoundException(chatId);
         }
 
-        var subscriptions = linkSubscriptionRepository.findByChatId(chatId);
         for (var subscription : subscriptions) {
-            linkSubscriptionRepository.remove(chatId, subscription.linkId());
             removeLinkIfOrphan(subscription.linkId());
         }
 
@@ -97,6 +99,7 @@ public class ScrapperLinkService {
         return new ListLinksResponse(List.copyOf(links), links.size());
     }
 
+    @Transactional
     public LinkResponse addLink(long chatId, AddLinkRequest request) {
         ensureChatExists(chatId);
 
@@ -126,6 +129,7 @@ public class ScrapperLinkService {
                 trackedLink.id(), trackedLink.url().toString(), subscription.tags(), subscription.filters());
     }
 
+    @Transactional
     public LinkResponse removeLink(long chatId, RemoveLinkRequest request) {
         ensureChatExists(chatId);
 
