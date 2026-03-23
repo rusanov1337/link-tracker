@@ -32,6 +32,10 @@ class BotScrapperContainerE2ETest {
     private static final String TELEGRAM_TOKEN = "test-token";
     private static final int BOT_INTERNAL_PORT = 8080;
     private static final int SCRAPPER_INTERNAL_PORT = 8081;
+    private static final int POSTGRES_INTERNAL_PORT = 5432;
+    private static final String DB_NAME = "link_tracker";
+    private static final String DB_USERNAME = "postgres";
+    private static final String DB_PASSWORD = "postgres";
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     @Test
@@ -52,12 +56,14 @@ class BotScrapperContainerE2ETest {
                     telegramMockServer.getAddress().getPort(),
                     githubMockServer.getAddress().getPort());
 
+            var postgresContainer = createPostgresContainer(network);
             var botContainer =
                     createBotContainer(network, telegramMockServer.getAddress().getPort());
             var scrapperContainer = createScrapperContainer(
                     network, githubMockServer.getAddress().getPort());
 
             try {
+                postgresContainer.start();
                 botContainer.start();
                 scrapperContainer.start();
 
@@ -75,6 +81,7 @@ class BotScrapperContainerE2ETest {
             } finally {
                 scrapperContainer.stop();
                 botContainer.stop();
+                postgresContainer.stop();
             }
         } finally {
             if (telegramMockServer != null) {
@@ -121,6 +128,17 @@ class BotScrapperContainerE2ETest {
         exchange.close();
     }
 
+    private static GenericContainer<?> createPostgresContainer(Network network) {
+        return new GenericContainer<>(DockerImageName.parse("postgres:18-alpine"))
+                .withNetwork(network)
+                .withNetworkAliases("postgres")
+                .withExposedPorts(POSTGRES_INTERNAL_PORT)
+                .withEnv("POSTGRES_DB", DB_NAME)
+                .withEnv("POSTGRES_USER", DB_USERNAME)
+                .withEnv("POSTGRES_PASSWORD", DB_PASSWORD)
+                .waitingFor(Wait.forListeningPort());
+    }
+
     private static GenericContainer<?> createBotContainer(Network network, int telegramMockPort) throws IOException {
         return new GenericContainer<>(DockerImageName.parse("eclipse-temurin:25-jdk-alpine"))
                 .withNetwork(network)
@@ -132,7 +150,8 @@ class BotScrapperContainerE2ETest {
                 .withEnv("APP_TELEGRAM_POLLING_ENABLED", "false")
                 .withEnv("APP_TELEGRAM_SET_MY_COMMANDS_ENABLED", "false")
                 .withEnv("APP_SCRAPPER_BASE_URL", "http://scrapper:" + SCRAPPER_INTERNAL_PORT)
-                .withCopyFileToContainer(MountableFile.forHostPath(findRepackagedJar("bot", "bot")), "/app/bot.jar")
+                .withCopyFileToContainer(
+                        MountableFile.forHostPath(findRepackagedJar("bot", "bot", "e2e")), "/app/bot.jar")
                 .withCommand("java", "-jar", "/app/bot.jar")
                 .waitingFor(Wait.forHttp("/actuator/health")
                         .forPort(BOT_INTERNAL_PORT)
@@ -146,12 +165,16 @@ class BotScrapperContainerE2ETest {
                 .withNetworkAliases("scrapper")
                 .withExposedPorts(SCRAPPER_INTERNAL_PORT)
                 .withEnv("SERVER_PORT", Integer.toString(SCRAPPER_INTERNAL_PORT))
+                .withEnv("SCRAPPER_DB_URL", "jdbc:postgresql://postgres:5432/" + DB_NAME)
+                .withEnv("SCRAPPER_DB_USERNAME", DB_USERNAME)
+                .withEnv("SCRAPPER_DB_PASSWORD", DB_PASSWORD)
                 .withEnv("APP_BOT_BASE_URL", "http://bot:" + BOT_INTERNAL_PORT)
                 .withEnv("APP_SCHEDULER_ENABLED", "true")
                 .withEnv("APP_SCHEDULER_INTERVAL", "500")
                 .withEnv("APP_GITHUB_BASE_URL", "http://host.testcontainers.internal:" + githubMockPort)
                 .withCopyFileToContainer(
-                        MountableFile.forHostPath(findRepackagedJar("scrapper", "scrapper")), "/app/scrapper.jar")
+                        MountableFile.forHostPath(findRepackagedJar("scrapper", "scrapper", "e2e")),
+                        "/app/scrapper.jar")
                 .withCommand("java", "-jar", "/app/scrapper.jar")
                 .waitingFor(Wait.forHttp("/actuator/health")
                         .forPort(SCRAPPER_INTERNAL_PORT)
@@ -159,7 +182,7 @@ class BotScrapperContainerE2ETest {
                 .withStartupTimeout(Duration.ofMinutes(2));
     }
 
-    private static Path findRepackagedJar(String module, String prefix) throws IOException {
+    private static Path findRepackagedJar(String module, String prefix, String classifier) throws IOException {
         var currentDir = Path.of("").toAbsolutePath().normalize();
         var root = Files.exists(currentDir.resolve("bot")) && Files.exists(currentDir.resolve("scrapper"))
                 ? currentDir
@@ -171,6 +194,7 @@ class BotScrapperContainerE2ETest {
 
         try (var files = Files.list(targetDir)) {
             return files.filter(path -> path.getFileName().toString().startsWith(prefix + "-"))
+                    .filter(path -> path.getFileName().toString().contains("-" + classifier + ".jar"))
                     .filter(path -> path.getFileName().toString().endsWith(".jar"))
                     .filter(path -> !path.getFileName().toString().endsWith(".jar.original"))
                     .max(Comparator.comparing(path -> path.getFileName().toString()))
