@@ -93,7 +93,13 @@ export STACKOVERFLOW_ACCESS_TOKEN=""
 ### Локальный запуск PostgreSQL
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
+```
+
+### Применение миграций отдельным контейнером
+
+```bash
+docker compose run --rm migrations
 ```
 
 ### Локальный запуск scrapper
@@ -102,7 +108,7 @@ docker compose up -d
 java -jar ./scrapper/target/scrapper-0.0.1.jar
 ```
 
-Миграции Liquibase применяются автоматически при старте `scrapper`.
+При запуске `scrapper` из IDE миграции применяются автоматически.
 
 ### Переключение доступа к БД
 

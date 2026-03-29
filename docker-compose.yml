@@ -16,5 +16,22 @@ services:
       timeout: 5s
       retries: 10
 
+  migrations:
+    image: liquibase/liquibase:4.33
+    container_name: link-tracker-migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/liquibase/changelog:ro
+    command:
+      - --search-path=/liquibase/changelog
+      - --changelog-file=master.xml
+      - --url=jdbc:postgresql://postgres:5432/link_tracker
+      - --username=postgres
+      - --password=postgres
+      - update
+    restart: "no"
+
 volumes:
   postgres-data:
