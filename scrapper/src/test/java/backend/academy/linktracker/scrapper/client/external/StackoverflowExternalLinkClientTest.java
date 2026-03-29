@@ -65,6 +65,14 @@ class StackoverflowExternalLinkClientTest {
                 responseBody.write(bytes);
             }
         });
+        server.createContext("/2.3/answers/11/comments", exchange -> {
+            var payload = "{\"items\":[]}";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
         server.createContext("/2.3/questions/12345/comments", exchange -> {
             var payload = "{\"items\":[]}";
             var bytes = payload.getBytes(StandardCharsets.UTF_8);
@@ -106,6 +114,14 @@ class StackoverflowExternalLinkClientTest {
                 responseBody.write(bytes);
             }
         });
+        server.createContext("/2.3/answers/11/comments", exchange -> {
+            var payload = "{\"items\":[]}";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
         server.createContext("/2.3/questions/12345/comments", exchange -> {
             var payload = "{\"items\":[]}";
             var bytes = payload.getBytes(StandardCharsets.UTF_8);
@@ -122,6 +138,60 @@ class StackoverflowExternalLinkClientTest {
         var result = client.fetchUpdates(trackedLink);
 
         assertTrue(result.updates().isEmpty());
+    }
+
+    @Test
+    void fetchUpdatesReturnsDetectedAnswerCommentWhenCommentIsNew() {
+        server.createContext("/2.3/questions/12345", exchange -> {
+            var payload = "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+        server.createContext("/2.3/questions/12345/answers", exchange -> {
+            var payload = """
+                    {"items":[{"answer_id":11,"creation_date":1735732700,"body":"<p>Old answer</p>","owner":{"display_name":"Jane"}}]}
+                    """;
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+        server.createContext("/2.3/answers/11/comments", exchange -> {
+            var payload = """
+                    {"items":[{"comment_id":77,"creation_date":1735732900,"body":"<p>Answer comment</p>","owner":{"display_name":"John"}}]}
+                    """;
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+        server.createContext("/2.3/questions/12345/comments", exchange -> {
+            var payload = "{\"items\":[]}";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+
+        var trackedLink = TrackedLink.create(
+                        1L,
+                        URI.create("https://stackoverflow.com/questions/12345/sample-question"),
+                        Instant.parse("2025-01-01T00:00:00Z"))
+                .withLastUpdatedAt(Instant.ofEpochSecond(1735732800L));
+        var result = client.fetchUpdates(trackedLink);
+
+        assertEquals(1, result.updates().size());
+        assertEquals(UpdateEventType.COMMENT, result.updates().getFirst().eventType());
+        assertEquals("Sample question", result.updates().getFirst().title());
+        assertEquals("John", result.updates().getFirst().author());
+        assertEquals("Answer comment", result.updates().getFirst().preview());
+        assertEquals("answer-comment:77", result.updates().getFirst().cursor());
     }
 
     @Test

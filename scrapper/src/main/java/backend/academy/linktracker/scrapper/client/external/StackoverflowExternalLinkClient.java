@@ -65,8 +65,10 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
             }
 
             var updates = new ArrayList<StackoverflowEvent>();
-            updates.addAll(fetchAnswerEvents(questionIdValue));
-            updates.addAll(fetchCommentEvents(questionIdValue));
+            var answerPayload = fetchAnswerPayload(questionIdValue);
+            updates.addAll(answerPayload.events());
+            updates.addAll(fetchQuestionCommentEvents(questionIdValue));
+            updates.addAll(fetchAnswerCommentEvents(answerPayload.answerIds()));
             updates.removeIf(event -> !isNewEvent(event, trackedLink));
             if (updates.isEmpty()) {
                 return LinkCheckResult.empty();
@@ -147,14 +149,24 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
         return Optional.of(titleRaw);
     }
 
-    private List<StackoverflowEvent> fetchAnswerEvents(String questionId) {
+    private AnswerPayload fetchAnswerPayload(String questionId) {
         var responseBody = executeGet("/2.3/questions/{id}/answers", questionId, true);
-        return parseAnswerEvents(responseBody);
+        return parseAnswerPayload(responseBody);
     }
 
-    private List<StackoverflowEvent> fetchCommentEvents(String questionId) {
+    private List<StackoverflowEvent> fetchQuestionCommentEvents(String questionId) {
         var responseBody = executeGet("/2.3/questions/{id}/comments", questionId, true);
-        return parseCommentEvents(responseBody);
+        return parseQuestionCommentEvents(responseBody);
+    }
+
+    private List<StackoverflowEvent> fetchAnswerCommentEvents(List<Long> answerIds) {
+        if (answerIds.isEmpty()) {
+            return List.of();
+        }
+
+        var encodedAnswerIds = answerIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(";"));
+        var responseBody = executeGet("/2.3/answers/{id}/comments", encodedAnswerIds, true);
+        return parseAnswerCommentEvents(responseBody);
     }
 
     private String executeGet(String path, String id, boolean includeBody) {
@@ -196,18 +208,19 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
     }
 
     @SuppressWarnings("unchecked")
-    private List<StackoverflowEvent> parseAnswerEvents(String responseBody) {
+    private AnswerPayload parseAnswerPayload(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
-            return List.of();
+            return new AnswerPayload(List.of(), List.of());
         }
 
         Map<String, Object> parsed = JsonParserFactory.getJsonParser().parseMap(responseBody);
         var items = parsed.get("items");
         if (!(items instanceof List<?> itemsList) || itemsList.isEmpty()) {
-            return List.of();
+            return new AnswerPayload(List.of(), List.of());
         }
 
         var events = new ArrayList<StackoverflowEvent>();
+        var answerIds = new ArrayList<Long>();
         for (var item : itemsList) {
             if (!(item instanceof Map<?, ?> itemMap)) {
                 continue;
@@ -219,18 +232,20 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
                 continue;
             }
 
+            answerIds.add(answerIdRaw.longValue());
             events.add(new StackoverflowEvent(
                     UpdateEventType.ANSWER,
                     answerIdRaw.longValue(),
                     Instant.ofEpochSecond(createdAtRaw.longValue()),
                     extractOwnerDisplayName((Map<String, Object>) itemMap),
-                    extractBodyPreview((Map<String, Object>) itemMap)));
+                    extractBodyPreview((Map<String, Object>) itemMap),
+                    "answer"));
         }
-        return events;
+        return new AnswerPayload(events, answerIds);
     }
 
     @SuppressWarnings("unchecked")
-    private List<StackoverflowEvent> parseCommentEvents(String responseBody) {
+    private List<StackoverflowEvent> parseQuestionCommentEvents(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
             return List.of();
         }
@@ -258,7 +273,43 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
                     commentIdRaw.longValue(),
                     Instant.ofEpochSecond(createdAtRaw.longValue()),
                     extractOwnerDisplayName((Map<String, Object>) itemMap),
-                    extractBodyPreview((Map<String, Object>) itemMap)));
+                    extractBodyPreview((Map<String, Object>) itemMap),
+                    "question-comment"));
+        }
+        return events;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<StackoverflowEvent> parseAnswerCommentEvents(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return List.of();
+        }
+
+        Map<String, Object> parsed = JsonParserFactory.getJsonParser().parseMap(responseBody);
+        var items = parsed.get("items");
+        if (!(items instanceof List<?> itemsList) || itemsList.isEmpty()) {
+            return List.of();
+        }
+
+        var events = new ArrayList<StackoverflowEvent>();
+        for (var item : itemsList) {
+            if (!(item instanceof Map<?, ?> itemMap)) {
+                continue;
+            }
+
+            var commentId = ((Map<String, Object>) itemMap).get("comment_id");
+            var createdAt = ((Map<String, Object>) itemMap).get("creation_date");
+            if (!(commentId instanceof Number commentIdRaw) || !(createdAt instanceof Number createdAtRaw)) {
+                continue;
+            }
+
+            events.add(new StackoverflowEvent(
+                    UpdateEventType.COMMENT,
+                    commentIdRaw.longValue(),
+                    Instant.ofEpochSecond(createdAtRaw.longValue()),
+                    extractOwnerDisplayName((Map<String, Object>) itemMap),
+                    extractBodyPreview((Map<String, Object>) itemMap),
+                    "answer-comment"));
         }
         return events;
     }
@@ -328,19 +379,21 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
 
         var typeRank = switch (parts[0]) {
             case "answer" -> 0;
-            case "comment" -> 1;
+            case "question-comment" -> 1;
+            case "answer-comment" -> 2;
             default -> Integer.MIN_VALUE;
         };
         return new Cursor(typeRank, Long.parseLong(parts[1]));
     }
 
     private record StackoverflowEvent(
-            UpdateEventType eventType, long id, Instant createdAt, String author, String preview) {
+            UpdateEventType eventType, long id, Instant createdAt, String author, String preview, String cursorPrefix) {
         private String cursor() {
-            var prefix = eventType == UpdateEventType.ANSWER ? "answer" : "comment";
-            return prefix + ":" + id;
+            return cursorPrefix + ":" + id;
         }
     }
+
+    private record AnswerPayload(List<StackoverflowEvent> events, List<Long> answerIds) {}
 
     private record Cursor(int typeRank, long id) {}
 }

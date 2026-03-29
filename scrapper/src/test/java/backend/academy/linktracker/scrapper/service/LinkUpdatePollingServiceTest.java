@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
 
 class LinkUpdatePollingServiceTest {
 
+    private final LinkUpdateDescriptionFormatter linkUpdateDescriptionFormatter = new LinkUpdateDescriptionFormatter();
+
     @Test
     void checkUpdatesSendsNotificationWhenLinkWasUpdated() {
         var trackedLinkRepository = new InMemoryTrackedLinkRepository();
@@ -225,7 +227,12 @@ class LinkUpdatePollingServiceTest {
         var schedulerProperties = new SchedulerProperties();
         schedulerProperties.setBatchSize(batchSize);
         return new LinkUpdatePollingService(
-                trackedLinkRepository, linkSubscriptionRepository, externalClients, botClient, schedulerProperties);
+                trackedLinkRepository,
+                linkSubscriptionRepository,
+                externalClients,
+                botClient,
+                linkUpdateDescriptionFormatter,
+                schedulerProperties);
     }
 
     private record Notification(long id, URI url, String description, List<Long> tgChatIds) {}

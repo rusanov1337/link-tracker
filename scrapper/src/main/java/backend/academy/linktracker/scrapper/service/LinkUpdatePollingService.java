@@ -5,13 +5,10 @@ import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.DetectedUpdate;
 import backend.academy.linktracker.scrapper.domain.LinkCheckResult;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
-import backend.academy.linktracker.scrapper.domain.UpdateEventType;
-import backend.academy.linktracker.scrapper.domain.UpdateProvider;
 import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -27,6 +24,7 @@ public class LinkUpdatePollingService {
     private final LinkSubscriptionRepository linkSubscriptionRepository;
     private final List<ExternalLinkClient> externalLinkClients;
     private final BotUpdatesClient botUpdatesClient;
+    private final LinkUpdateDescriptionFormatter linkUpdateDescriptionFormatter;
     private final SchedulerProperties schedulerProperties;
 
     public LinkUpdatePollingService(
@@ -34,11 +32,13 @@ public class LinkUpdatePollingService {
             LinkSubscriptionRepository linkSubscriptionRepository,
             List<ExternalLinkClient> externalLinkClients,
             BotUpdatesClient botUpdatesClient,
+            LinkUpdateDescriptionFormatter linkUpdateDescriptionFormatter,
             SchedulerProperties schedulerProperties) {
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
         this.externalLinkClients = externalLinkClients;
         this.botUpdatesClient = botUpdatesClient;
+        this.linkUpdateDescriptionFormatter = linkUpdateDescriptionFormatter;
         this.schedulerProperties = schedulerProperties;
     }
 
@@ -120,7 +120,7 @@ public class LinkUpdatePollingService {
     }
 
     private boolean notifyBot(TrackedLink trackedLink, DetectedUpdate update, List<Long> chatIds) {
-        var description = formatDescription(update);
+        var description = linkUpdateDescriptionFormatter.format(update);
         try {
             botUpdatesClient.sendLinkUpdate(trackedLink.id(), trackedLink.url(), description, chatIds);
             LOGGER.atInfo()
@@ -144,29 +144,5 @@ public class LinkUpdatePollingService {
                     .log("Bot update notification failed");
             return false;
         }
-    }
-
-    private String formatDescription(DetectedUpdate update) {
-        var titleLabel = update.provider() == UpdateProvider.STACKOVERFLOW ? "Тема" : "Название";
-        var previewLabel = switch (update.eventType()) {
-            case ISSUE, PULL_REQUEST -> "Описание";
-            case ANSWER, COMMENT -> "Превью";
-        };
-        return String.join(
-                System.lineSeparator(),
-                eventLabel(update.eventType()),
-                titleLabel + ": " + update.title(),
-                "Пользователь: " + update.author(),
-                "Создано: " + DateTimeFormatter.ISO_INSTANT.format(update.createdAt()),
-                previewLabel + ": " + update.preview());
-    }
-
-    private String eventLabel(UpdateEventType eventType) {
-        return switch (eventType) {
-            case ISSUE -> "Новый issue";
-            case PULL_REQUEST -> "Новый pull request";
-            case ANSWER -> "Новый ответ";
-            case COMMENT -> "Новый комментарий";
-        };
     }
 }
