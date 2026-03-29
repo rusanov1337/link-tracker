@@ -34,11 +34,26 @@ public class LinkEntity {
     @Column(name = "last_updated_at", nullable = false)
     private Instant lastUpdatedAt;
 
-    public LinkEntity(Long id, String url, Instant createdAt, Instant lastCheckedAt, Instant lastUpdatedAt) {
+    @Column(name = "last_event_at")
+    private Instant lastEventAt;
+
+    @Column(name = "last_event_cursor")
+    private String lastEventCursor;
+
+    public LinkEntity(
+            Long id,
+            String url,
+            Instant createdAt,
+            Instant lastCheckedAt,
+            Instant lastUpdatedAt,
+            Instant lastEventAt,
+            String lastEventCursor) {
         this.id = id;
         this.url = url;
         this.createdAt = createdAt;
         this.lastCheckedAt = lastCheckedAt;
         this.lastUpdatedAt = lastUpdatedAt;
+        this.lastEventAt = lastEventAt;
+        this.lastEventCursor = lastEventCursor;
     }
 }

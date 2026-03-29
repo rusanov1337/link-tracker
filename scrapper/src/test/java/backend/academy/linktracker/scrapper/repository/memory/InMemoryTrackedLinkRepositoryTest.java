@@ -84,12 +84,16 @@ class InMemoryTrackedLinkRepositoryTest {
         var now = Instant.parse("2026-03-06T10:00:00Z");
         var created = repository.create(URI.create("https://stackoverflow.com/questions/1"), now);
 
-        var updated = created.withLastCheckedAt(now.plusSeconds(10)).withLastUpdatedAt(now.plusSeconds(20));
+        var updated = created.withLastCheckedAt(now.plusSeconds(10))
+                .withLastUpdatedAt(now.plusSeconds(20))
+                .withLastEventState(now.plusSeconds(30), "cursor-1");
         repository.update(updated);
 
         var stored = repository.findById(created.id()).orElseThrow();
         assertEquals(updated.lastCheckedAt(), stored.lastCheckedAt());
         assertEquals(updated.lastUpdatedAt(), stored.lastUpdatedAt());
+        assertEquals(updated.lastEventAt(), stored.lastEventAt());
+        assertEquals(updated.lastEventCursor(), stored.lastEventCursor());
     }
 
     @Test

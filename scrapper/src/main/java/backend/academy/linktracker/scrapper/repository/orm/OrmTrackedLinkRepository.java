@@ -30,7 +30,7 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
             return toDomain(existing.orElseThrow());
         }
 
-        var entity = new LinkEntity(null, canonicalUrl.toString(), now, now, now);
+        var entity = new LinkEntity(null, canonicalUrl.toString(), now, now, now, null, null);
         entityManager.persist(entity);
         entityManager.flush();
         return toDomain(entity);
@@ -86,6 +86,8 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
         entity.setCreatedAt(trackedLink.createdAt());
         entity.setLastCheckedAt(trackedLink.lastCheckedAt());
         entity.setLastUpdatedAt(trackedLink.lastUpdatedAt());
+        entity.setLastEventAt(trackedLink.lastEventAt());
+        entity.setLastEventCursor(trackedLink.lastEventCursor());
     }
 
     @Override
@@ -122,6 +124,8 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
                 URI.create(entity.getUrl()),
                 entity.getCreatedAt(),
                 entity.getLastCheckedAt(),
-                entity.getLastUpdatedAt());
+                entity.getLastUpdatedAt(),
+                entity.getLastEventAt(),
+                entity.getLastEventCursor());
     }
 }

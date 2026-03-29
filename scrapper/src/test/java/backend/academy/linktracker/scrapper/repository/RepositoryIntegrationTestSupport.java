@@ -71,12 +71,16 @@ public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSu
                 .findByUrl(URI.create("https://github.com/org/repo"))
                 .isPresent());
 
-        var updated = created.withLastCheckedAt(now.plusSeconds(15)).withLastUpdatedAt(now.plusSeconds(30));
+        var updated = created.withLastCheckedAt(now.plusSeconds(15))
+                .withLastUpdatedAt(now.plusSeconds(30))
+                .withLastEventState(now.plusSeconds(45), "cursor-42");
         trackedLinkRepository.update(updated);
 
         var stored = trackedLinkRepository.findById(created.id()).orElseThrow();
         assertEquals(updated.lastCheckedAt(), stored.lastCheckedAt());
         assertEquals(updated.lastUpdatedAt(), stored.lastUpdatedAt());
+        assertEquals(updated.lastEventAt(), stored.lastEventAt());
+        assertEquals(updated.lastEventCursor(), stored.lastEventCursor());
 
         assertTrue(trackedLinkRepository.delete(created.id()));
         assertFalse(trackedLinkRepository.delete(created.id()));

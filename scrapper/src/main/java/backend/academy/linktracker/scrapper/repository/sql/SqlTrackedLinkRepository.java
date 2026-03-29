@@ -36,15 +36,17 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
         var canonicalUrl = SupportedLinkCanonicalizer.canonicalize(url);
         return jdbcClient
                 .sql("""
-                    insert into links (url, created_at, last_checked_at, last_updated_at)
-                    values (:url, :createdAt, :lastCheckedAt, :lastUpdatedAt)
+                    insert into links (url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor)
+                    values (:url, :createdAt, :lastCheckedAt, :lastUpdatedAt, :lastEventAt, :lastEventCursor)
                     on conflict (url) do update set url = excluded.url
-                    returning id, url, created_at, last_checked_at, last_updated_at
+                    returning id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     """)
                 .param("url", canonicalUrl.toString())
                 .param("createdAt", Timestamp.from(now))
                 .param("lastCheckedAt", Timestamp.from(now))
                 .param("lastUpdatedAt", Timestamp.from(now))
+                .param("lastEventAt", null)
+                .param("lastEventCursor", null)
                 .query(trackedLinkRowMapper)
                 .single();
     }
@@ -52,7 +54,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     @Override
     public Optional<TrackedLink> findById(long id) {
         return jdbcClient.sql("""
-                    select id, url, created_at, last_checked_at, last_updated_at
+                    select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     where id = :id
                     """).param("id", id).query(trackedLinkRowMapper).optional();
@@ -63,7 +65,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
         var canonicalUrl = SupportedLinkCanonicalizer.canonicalize(url);
         return jdbcClient
                 .sql("""
-                    select id, url, created_at, last_checked_at, last_updated_at
+                    select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     where url = :url
                     """)
@@ -76,7 +78,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
         return jdbcClient
                 .sql("""
-                    select id, url, created_at, last_checked_at, last_updated_at
+                    select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     where last_checked_at <= :checkedBefore
                       and id > :afterId
@@ -93,7 +95,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     @Override
     public List<TrackedLink> findAll() {
         return jdbcClient.sql("""
-                    select id, url, created_at, last_checked_at, last_updated_at
+                    select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     order by id
                     """).query(trackedLinkRowMapper).list();
@@ -107,7 +109,9 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                     set url = :url,
                         created_at = :createdAt,
                         last_checked_at = :lastCheckedAt,
-                        last_updated_at = :lastUpdatedAt
+                        last_updated_at = :lastUpdatedAt,
+                        last_event_at = :lastEventAt,
+                        last_event_cursor = :lastEventCursor
                     where id = :id
                     """)
                 .param("id", trackedLink.id())
@@ -118,6 +122,10 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                 .param("createdAt", Timestamp.from(trackedLink.createdAt()))
                 .param("lastCheckedAt", Timestamp.from(trackedLink.lastCheckedAt()))
                 .param("lastUpdatedAt", Timestamp.from(trackedLink.lastUpdatedAt()))
+                .param(
+                        "lastEventAt",
+                        trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()))
+                .param("lastEventCursor", trackedLink.lastEventCursor())
                 .update();
         if (updatedRows == 0) {
             throw new IllegalArgumentException("Tracked link does not exist: " + trackedLink.id());
@@ -144,6 +152,13 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                 URI.create(resultSet.getString("url")),
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("last_checked_at").toInstant(),
-                resultSet.getTimestamp("last_updated_at").toInstant());
+                resultSet.getTimestamp("last_updated_at").toInstant(),
+                toInstant(resultSet, "last_event_at"),
+                resultSet.getString("last_event_cursor"));
+    }
+
+    private Instant toInstant(ResultSet resultSet, String column) throws SQLException {
+        var timestamp = resultSet.getTimestamp(column);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 }

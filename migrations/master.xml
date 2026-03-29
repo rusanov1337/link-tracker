@@ -9,4 +9,8 @@
     <changeSet author="codex" id="001-init-schema">
         <sqlFile path="001-init.sql" relativeToChangelogFile="true"/>
     </changeSet>
+
+    <changeSet author="codex" id="002-add-link-event-state">
+        <sqlFile path="002-add-link-event-state.sql" relativeToChangelogFile="true"/>
+    </changeSet>
 </databaseChangeLog>
