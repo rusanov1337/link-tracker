@@ -1,0 +1,22 @@
+package backend.academy.linktracker.scrapper.domain;
+
+import java.time.Instant;
+import java.util.Objects;
+
+public record DetectedUpdate(
+        UpdateProvider provider,
+        UpdateEventType eventType,
+        String title,
+        String author,
+        Instant createdAt,
+        String preview) {
+
+    public DetectedUpdate {
+        provider = Objects.requireNonNull(provider, "provider");
+        eventType = Objects.requireNonNull(eventType, "eventType");
+        title = Objects.requireNonNull(title, "title");
+        author = Objects.requireNonNull(author, "author");
+        createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        preview = Objects.requireNonNull(preview, "preview");
+    }
+}
