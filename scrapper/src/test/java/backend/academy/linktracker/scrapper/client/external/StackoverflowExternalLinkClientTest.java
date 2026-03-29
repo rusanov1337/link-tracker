@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import backend.academy.linktracker.scrapper.domain.TrackedLink;
+import backend.academy.linktracker.scrapper.domain.UpdateEventType;
 import backend.academy.linktracker.scrapper.properties.StackoverflowProperties;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -44,25 +46,26 @@ class StackoverflowExternalLinkClientTest {
     }
 
     @Test
-    void fetchLastUpdatedReturnsTimestampWhenResponseIsValid() {
+    void fetchUpdatesReturnsDetectedAnswerWhenResponseIsValid() {
         server.createContext("/2.3/questions/12345", exchange -> {
-            var payload = "{\"items\":[{\"last_activity_date\":1735732800}]}";
+            var payload = "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}";
             var bytes = payload.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);
             try (var responseBody = exchange.getResponseBody()) {
                 responseBody.write(bytes);
             }
         });
-
-        var result = client.fetchLastUpdated(URI.create("https://stackoverflow.com/questions/12345/sample-question"));
-
-        assertTrue(result.isPresent());
-        assertEquals(Instant.ofEpochSecond(1735732800L), result.orElseThrow());
-    }
-
-    @Test
-    void fetchLastUpdatedReturnsEmptyWhenBodyDoesNotMatchSchema() {
-        server.createContext("/2.3/questions/12345", exchange -> {
+        server.createContext("/2.3/questions/12345/answers", exchange -> {
+            var payload = """
+                    {"items":[{"answer_id":11,"creation_date":1735732800,"body":"<p>Answer body</p>","owner":{"display_name":"Jane"}}]}
+                    """;
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+        server.createContext("/2.3/questions/12345/comments", exchange -> {
             var payload = "{\"items\":[]}";
             var bytes = payload.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);
@@ -71,21 +74,70 @@ class StackoverflowExternalLinkClientTest {
             }
         });
 
-        var result = client.fetchLastUpdated(URI.create("https://stackoverflow.com/questions/12345/sample-question"));
+        var trackedLink = TrackedLink.create(
+                1L,
+                URI.create("https://stackoverflow.com/questions/12345/sample-question"),
+                Instant.parse("2025-01-01T00:00:00Z"));
+        var result = client.fetchUpdates(trackedLink);
 
-        assertTrue(result.isEmpty());
+        assertEquals(1, result.updates().size());
+        assertEquals(UpdateEventType.ANSWER, result.updates().getFirst().eventType());
+        assertEquals("Sample question", result.updates().getFirst().title());
+        assertEquals("Jane", result.updates().getFirst().author());
+        assertEquals("Answer body", result.updates().getFirst().preview());
+        assertEquals("answer:11", result.updates().getFirst().cursor());
     }
 
     @Test
-    void fetchLastUpdatedReturnsEmptyWhenProviderReturnsError() {
+    void fetchUpdatesReturnsEmptyWhenBodyDoesNotMatchSchema() {
+        server.createContext("/2.3/questions/12345", exchange -> {
+            var payload = "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+        server.createContext("/2.3/questions/12345/answers", exchange -> {
+            var payload = "{\"items\":[]}";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+        server.createContext("/2.3/questions/12345/comments", exchange -> {
+            var payload = "{\"items\":[]}";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+
+        var trackedLink = TrackedLink.create(
+                1L,
+                URI.create("https://stackoverflow.com/questions/12345/sample-question"),
+                Instant.parse("2025-01-01T00:00:00Z"));
+        var result = client.fetchUpdates(trackedLink);
+
+        assertTrue(result.updates().isEmpty());
+    }
+
+    @Test
+    void fetchUpdatesReturnsEmptyWhenProviderReturnsError() {
         server.createContext("/2.3/questions/12345", exchange -> {
             exchange.sendResponseHeaders(502, -1);
             exchange.close();
         });
 
-        var result = client.fetchLastUpdated(URI.create("https://stackoverflow.com/questions/12345/sample-question"));
+        var trackedLink = TrackedLink.create(
+                1L,
+                URI.create("https://stackoverflow.com/questions/12345/sample-question"),
+                Instant.parse("2025-01-01T00:00:00Z"));
+        var result = client.fetchUpdates(trackedLink);
 
-        assertTrue(result.isEmpty());
+        assertTrue(result.updates().isEmpty());
     }
 
     @Test

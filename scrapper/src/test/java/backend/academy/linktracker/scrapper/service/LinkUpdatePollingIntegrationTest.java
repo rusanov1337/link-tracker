@@ -7,6 +7,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 
 import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
@@ -42,11 +43,21 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
 
     @Test
     void checkUpdatesSendsNotificationToTrackedChats() {
-        stubFor(get(urlEqualTo("/repos/octocat/hello-world"))
+        stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .withQueryParam("state", containing("all"))
+                .withQueryParam("sort", containing("created"))
+                .withQueryParam("direction", containing("desc"))
+                .withQueryParam("per_page", containing("100"))
                 .willReturn(aResponse().withStatus(200).withBody("""
-                                {
-                                  "updated_at": "2099-01-01T00:00:00Z"
-                                }
+                                [
+                                  {
+                                    "id": 101,
+                                    "title": "New issue",
+                                    "created_at": "2099-01-01T00:00:00Z",
+                                    "body_text": "Issue preview",
+                                    "user": { "login": "octocat" }
+                                  }
+                                ]
                                 """)));
         stubFor(post(urlEqualTo("/updates")).willReturn(aResponse().withStatus(200)));
 
@@ -63,12 +74,15 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
                 1,
                 postRequestedFor(urlEqualTo("/updates"))
                         .withRequestBody(containing("\"url\":\"https://github.com/octocat/hello-world\""))
-                        .withRequestBody(containing("\"tgChatIds\":[1,2]")));
+                        .withRequestBody(containing("\"tgChatIds\":[1,2]"))
+                        .withRequestBody(containing("New issue"))
+                        .withRequestBody(containing("octocat"))
+                        .withRequestBody(containing("Issue preview")));
     }
 
     @Test
     void checkUpdatesSkipsBotNotificationWhenExternalApiFails() {
-        stubFor(get(urlEqualTo("/repos/octocat/hello-world"))
+        stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
                 .willReturn(aResponse().withStatus(503)));
 
         scrapperLinkService.registerChat(1L);
@@ -82,8 +96,8 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
 
     @Test
     void checkUpdatesSkipsBotNotificationWhenExternalApiBodyIsMalformed() {
-        stubFor(get(urlEqualTo("/repos/octocat/hello-world"))
-                .willReturn(aResponse().withStatus(200).withBody("{\"updated_at\":")));
+        stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .willReturn(aResponse().withStatus(200).withBody("[{\"id\":")));
 
         scrapperLinkService.registerChat(1L);
         scrapperLinkService.addLink(

@@ -2,11 +2,16 @@ package backend.academy.linktracker.scrapper.service;
 
 import backend.academy.linktracker.scrapper.client.bot.BotUpdatesClient;
 import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
+import backend.academy.linktracker.scrapper.domain.DetectedUpdate;
+import backend.academy.linktracker.scrapper.domain.LinkCheckResult;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
+import backend.academy.linktracker.scrapper.domain.UpdateEventType;
+import backend.academy.linktracker.scrapper.domain.UpdateProvider;
 import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -17,7 +22,6 @@ import org.springframework.stereotype.Service;
 public class LinkUpdatePollingService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LinkUpdatePollingService.class);
-    private static final String UPDATE_MESSAGE = "Обнаружено обновление отслеживаемой ссылки";
 
     private final TrackedLinkRepository trackedLinkRepository;
     private final LinkSubscriptionRepository linkSubscriptionRepository;
@@ -74,8 +78,8 @@ public class LinkUpdatePollingService {
                 return;
             }
 
-            var lastUpdated = client.orElseThrow().fetchLastUpdated(trackedLink.url());
-            processFetchedState(trackedLink, checkedAt, lastUpdated);
+            var checkResult = client.orElseThrow().fetchUpdates(trackedLink);
+            processFetchedState(trackedLink, checkedAt, checkResult);
         } catch (RuntimeException exception) {
             LOGGER.atWarn()
                     .addKeyValue("operation", "checkSingleLink")
@@ -92,36 +96,38 @@ public class LinkUpdatePollingService {
                 .findFirst();
     }
 
-    private void processFetchedState(TrackedLink trackedLink, Instant checkedAt, Optional<Instant> lastUpdated) {
-        if (lastUpdated.isEmpty() || !lastUpdated.orElseThrow().isAfter(trackedLink.lastUpdatedAt())) {
-            trackedLinkRepository.update(trackedLink.withLastCheckedAt(checkedAt));
+    private void processFetchedState(TrackedLink trackedLink, Instant checkedAt, LinkCheckResult checkResult) {
+        var currentState = trackedLink.withLastCheckedAt(checkedAt);
+        if (checkResult.updates().isEmpty()) {
+            trackedLinkRepository.update(currentState);
             return;
         }
 
         var chatIds = linkSubscriptionRepository.findByLinkId(trackedLink.id()).stream()
                 .map(subscription -> subscription.chatId())
                 .toList();
-        if (chatIds.isEmpty()) {
-            trackedLinkRepository.update(
-                    trackedLink.withLastCheckedAt(checkedAt).withLastUpdatedAt(lastUpdated.orElseThrow()));
-            return;
+        for (var update : checkResult.updates()) {
+            if (!chatIds.isEmpty() && !notifyBot(trackedLink, update, chatIds)) {
+                trackedLinkRepository.update(currentState);
+                return;
+            }
+
+            currentState = currentState.withLastUpdatedAt(update.createdAt())
+                    .withLastEventState(update.createdAt(), update.cursor());
         }
 
-        if (notifyBot(trackedLink, chatIds)) {
-            trackedLinkRepository.update(
-                    trackedLink.withLastCheckedAt(checkedAt).withLastUpdatedAt(lastUpdated.orElseThrow()));
-        } else {
-            trackedLinkRepository.update(trackedLink.withLastCheckedAt(checkedAt));
-        }
+        trackedLinkRepository.update(currentState);
     }
 
-    private boolean notifyBot(TrackedLink trackedLink, List<Long> chatIds) {
+    private boolean notifyBot(TrackedLink trackedLink, DetectedUpdate update, List<Long> chatIds) {
+        var description = formatDescription(update);
         try {
-            botUpdatesClient.sendLinkUpdate(trackedLink.id(), trackedLink.url(), UPDATE_MESSAGE, chatIds);
+            botUpdatesClient.sendLinkUpdate(trackedLink.id(), trackedLink.url(), description, chatIds);
             LOGGER.atInfo()
                     .addKeyValue("operation", "notifyBot")
                     .addKeyValue("linkId", trackedLink.id())
                     .addKeyValue("url", trackedLink.url())
+                    .addKeyValue("eventType", update.eventType())
                     .addKeyValue("chatIdsCount", chatIds.size())
                     .addKeyValue("success", true)
                     .log("Update notification sent to bot");
@@ -131,11 +137,36 @@ public class LinkUpdatePollingService {
                     .addKeyValue("operation", "notifyBot")
                     .addKeyValue("linkId", trackedLink.id())
                     .addKeyValue("url", trackedLink.url())
+                    .addKeyValue("eventType", update.eventType())
                     .addKeyValue("chatIdsCount", chatIds.size())
                     .addKeyValue("success", false)
                     .setCause(exception)
                     .log("Bot update notification failed");
             return false;
         }
+    }
+
+    private String formatDescription(DetectedUpdate update) {
+        var titleLabel = update.provider() == UpdateProvider.STACKOVERFLOW ? "Тема" : "Название";
+        var previewLabel = switch (update.eventType()) {
+            case ISSUE, PULL_REQUEST -> "Описание";
+            case ANSWER, COMMENT -> "Превью";
+        };
+        return String.join(
+                System.lineSeparator(),
+                eventLabel(update.eventType()),
+                titleLabel + ": " + update.title(),
+                "Пользователь: " + update.author(),
+                "Создано: " + DateTimeFormatter.ISO_INSTANT.format(update.createdAt()),
+                previewLabel + ": " + update.preview());
+    }
+
+    private String eventLabel(UpdateEventType eventType) {
+        return switch (eventType) {
+            case ISSUE -> "Новый issue";
+            case PULL_REQUEST -> "Новый pull request";
+            case ANSWER -> "Новый ответ";
+            case COMMENT -> "Новый комментарий";
+        };
     }
 }

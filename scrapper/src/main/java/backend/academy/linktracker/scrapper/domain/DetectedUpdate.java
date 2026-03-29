@@ -9,7 +9,8 @@ public record DetectedUpdate(
         String title,
         String author,
         Instant createdAt,
-        String preview) {
+        String preview,
+        String cursor) {
 
     public DetectedUpdate {
         provider = Objects.requireNonNull(provider, "provider");
@@ -18,5 +19,6 @@ public record DetectedUpdate(
         author = Objects.requireNonNull(author, "author");
         createdAt = Objects.requireNonNull(createdAt, "createdAt");
         preview = Objects.requireNonNull(preview, "preview");
+        cursor = Objects.requireNonNull(cursor, "cursor");
     }
 }

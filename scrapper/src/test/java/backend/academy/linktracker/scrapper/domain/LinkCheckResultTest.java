@@ -28,7 +28,8 @@ class LinkCheckResultTest {
                 "Issue title",
                 "octocat",
                 Instant.parse("2025-01-01T00:00:00Z"),
-                "Issue preview"));
+                "Issue preview",
+                "123"));
 
         var result = new LinkCheckResult(Optional.of("cursor-1"), sourceUpdates);
         sourceUpdates.clear();
@@ -41,7 +42,8 @@ class LinkCheckResultTest {
                         "Issue title",
                         "octocat",
                         Instant.parse("2025-01-01T00:00:00Z"),
-                        "Issue preview")),
+                        "Issue preview",
+                        "123")),
                 result.updates());
     }
 }
