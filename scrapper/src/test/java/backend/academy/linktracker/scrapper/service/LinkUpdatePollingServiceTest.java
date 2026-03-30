@@ -84,6 +84,28 @@ class LinkUpdatePollingServiceTest {
     }
 
     @Test
+    void checkUpdatesSendsFailureReportWhenExternalCheckFailed() {
+        var trackedLinkRepository = new InMemoryTrackedLinkRepository();
+        var linkSubscriptionRepository = new InMemoryLinkSubscriptionRepository();
+        var trackedLink = trackedLinkRepository.create(
+                URI.create("https://github.com/user/repo"), Instant.parse("2025-06-01T00:00:00Z"));
+        linkSubscriptionRepository.add(new LinkSubscription(11L, trackedLink.id(), List.of(), List.of()));
+        linkSubscriptionRepository.add(new LinkSubscription(22L, trackedLink.id(), List.of(), List.of()));
+
+        var externalClient = new StubExternalLinkClient(trackedLink.url(), LinkCheckResult.failure());
+        var botClient = new RecordingBotUpdatesClient(false);
+        var service =
+                newService(trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient, 100);
+
+        service.checkUpdates();
+
+        assertEquals(0, botClient.notifications.size());
+        assertEquals(2, botClient.reports.size());
+        assertTrue(botClient.reports.getFirst().description().contains("Не удалось обработать ссылки"));
+        assertTrue(botClient.reports.getFirst().description().contains(trackedLink.url().toString()));
+    }
+
+    @Test
     void checkUpdatesKeepsLastUpdatedWhenBotNotificationFailed() {
         var trackedLinkRepository = new InMemoryTrackedLinkRepository();
         var linkSubscriptionRepository = new InMemoryLinkSubscriptionRepository();
@@ -240,6 +262,7 @@ class LinkUpdatePollingServiceTest {
     private static final class RecordingBotUpdatesClient implements BotUpdatesClient {
         private final List<Notification> notifications = new ArrayList<>();
         private final boolean fail;
+        private final List<ReportNotification> reports = new ArrayList<>();
         private int attempts;
 
         private RecordingBotUpdatesClient(boolean fail) {
@@ -254,7 +277,16 @@ class LinkUpdatePollingServiceTest {
             }
             notifications.add(new Notification(id, url, description, List.copyOf(tgChatIds)));
         }
+
+        @Override
+        public void sendProcessingFailureReport(String description, List<Long> tgChatIds) {
+            for (var chatId : tgChatIds) {
+                reports.add(new ReportNotification(chatId, description));
+            }
+        }
     }
+
+    private record ReportNotification(long chatId, String description) {}
 
     private static final class StubExternalLinkClient implements ExternalLinkClient {
         private final URI supportedUrl;

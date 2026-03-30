@@ -88,7 +88,7 @@ class GithubExternalLinkClientTest {
                 1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
         var result = client.fetchUpdates(trackedLink);
 
-        assertTrue(result.updates().isEmpty());
+        assertTrue(result.failed());
     }
 
     @Test
@@ -106,7 +106,7 @@ class GithubExternalLinkClientTest {
                 1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
         var result = client.fetchUpdates(trackedLink);
 
-        assertTrue(result.updates().isEmpty());
+        assertTrue(result.failed());
     }
 
     @Test

@@ -76,14 +76,14 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
                     .addKeyValue("url", trackedLink.url())
                     .addKeyValue("status", exception.getStatusCode().value())
                     .log("GitHub request failed");
-            return LinkCheckResult.empty();
+            return LinkCheckResult.failure();
         } catch (RestClientException | IllegalArgumentException exception) {
             LOGGER.atWarn()
                     .addKeyValue("provider", "github")
                     .addKeyValue("url", trackedLink.url())
                     .setCause(exception)
                     .log("GitHub request failed with exception");
-            return LinkCheckResult.empty();
+            return LinkCheckResult.failure();
         }
     }
 
@@ -134,7 +134,7 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
                         event.preview(),
                         Long.toString(event.id())))
                 .toList();
-        return new LinkCheckResult(java.util.Optional.of(updates.getLast().cursor()), updates);
+        return new LinkCheckResult(java.util.Optional.of(updates.getLast().cursor()), updates, false);
     }
 
     private GithubEvent parseEvent(Map<String, Object> item) {

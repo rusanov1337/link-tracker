@@ -83,4 +83,20 @@ class HttpBotUpdatesClientTest {
                         1L, URI.create("https://github.com/octocat/hello-world"), "Updated", List.of(1L)));
         assertTrue(exception.getMessage().contains("failed"));
     }
+
+    @Test
+    void sendProcessingFailureReportPostsRequestWhenBotReturnsOk() {
+        var requestBodyRef = new AtomicReference<String>();
+        server.createContext("/reports", exchange -> {
+            var body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            requestBodyRef.set(body);
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+
+        assertDoesNotThrow(() -> client.sendProcessingFailureReport("Failed links", List.of(1L, 2L)));
+        var requestBody = requestBodyRef.get();
+        assertTrue(requestBody.contains("\"description\":\"Failed links\""));
+        assertTrue(requestBody.contains("\"tgChatIds\":[1,2]"));
+    }
 }

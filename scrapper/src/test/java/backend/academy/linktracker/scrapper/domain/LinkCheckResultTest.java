@@ -17,6 +17,7 @@ class LinkCheckResultTest {
 
         assertEquals(Optional.of("cursor-42"), result.cursor());
         assertTrue(result.updates().isEmpty());
+        assertEquals(false, result.failed());
     }
 
     @Test
@@ -31,7 +32,7 @@ class LinkCheckResultTest {
                 "Issue preview",
                 "123"));
 
-        var result = new LinkCheckResult(Optional.of("cursor-1"), sourceUpdates);
+        var result = new LinkCheckResult(Optional.of("cursor-1"), sourceUpdates, false);
         sourceUpdates.clear();
 
         assertEquals(1, result.updates().size());

@@ -97,7 +97,7 @@ class StackoverflowExternalLinkClientTest {
     }
 
     @Test
-    void fetchUpdatesReturnsEmptyWhenBodyDoesNotMatchSchema() {
+    void fetchUpdatesReturnsEmptyWhenNoNewEventsWereFound() {
         server.createContext("/2.3/questions/12345", exchange -> {
             var payload = "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}";
             var bytes = payload.getBytes(StandardCharsets.UTF_8);
@@ -138,6 +138,7 @@ class StackoverflowExternalLinkClientTest {
         var result = client.fetchUpdates(trackedLink);
 
         assertTrue(result.updates().isEmpty());
+        assertFalse(result.failed());
     }
 
     @Test
@@ -207,7 +208,7 @@ class StackoverflowExternalLinkClientTest {
                 Instant.parse("2025-01-01T00:00:00Z"));
         var result = client.fetchUpdates(trackedLink);
 
-        assertTrue(result.updates().isEmpty());
+        assertTrue(result.failed());
     }
 
     @Test

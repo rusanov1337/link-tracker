@@ -8,8 +8,12 @@ import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
+import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +49,7 @@ public class LinkUpdatePollingService {
     public void checkUpdates() {
         var checkedAt = Instant.now();
         var checkedLinksCount = 0;
+        var failedLinksByChat = new LinkedHashMap<Long, List<URI>>();
         long afterId = 0;
         while (true) {
             var links = trackedLinkRepository.findPageToCheck(checkedAt, afterId, schedulerProperties.getBatchSize());
@@ -53,7 +58,7 @@ public class LinkUpdatePollingService {
             }
 
             for (var trackedLink : links) {
-                checkSingleLink(trackedLink, checkedAt);
+                checkSingleLink(trackedLink, checkedAt, failedLinksByChat);
             }
 
             checkedLinksCount += links.size();
@@ -64,9 +69,10 @@ public class LinkUpdatePollingService {
                 .addKeyValue("operation", "checkUpdates")
                 .addKeyValue("linksChecked", checkedLinksCount)
                 .log("Links check finished");
+        sendFailureReports(failedLinksByChat);
     }
 
-    private void checkSingleLink(TrackedLink trackedLink, Instant checkedAt) {
+    private void checkSingleLink(TrackedLink trackedLink, Instant checkedAt, Map<Long, List<URI>> failedLinksByChat) {
         try {
             var client = findClient(trackedLink);
             if (client.isEmpty()) {
@@ -79,7 +85,9 @@ public class LinkUpdatePollingService {
             }
 
             var checkResult = client.orElseThrow().fetchUpdates(trackedLink);
-            processFetchedState(trackedLink, checkedAt, checkResult);
+            if (!processFetchedState(trackedLink, checkedAt, checkResult)) {
+                recordFailedLink(trackedLink, failedLinksByChat);
+            }
         } catch (RuntimeException exception) {
             LOGGER.atWarn()
                     .addKeyValue("operation", "checkSingleLink")
@@ -87,6 +95,8 @@ public class LinkUpdatePollingService {
                     .addKeyValue("url", trackedLink.url())
                     .setCause(exception)
                     .log("Link check failed");
+            trackedLinkRepository.update(trackedLink.withLastCheckedAt(checkedAt));
+            recordFailedLink(trackedLink, failedLinksByChat);
         }
     }
 
@@ -96,11 +106,15 @@ public class LinkUpdatePollingService {
                 .findFirst();
     }
 
-    private void processFetchedState(TrackedLink trackedLink, Instant checkedAt, LinkCheckResult checkResult) {
+    private boolean processFetchedState(TrackedLink trackedLink, Instant checkedAt, LinkCheckResult checkResult) {
         var currentState = trackedLink.withLastCheckedAt(checkedAt);
+        if (checkResult.failed()) {
+            trackedLinkRepository.update(currentState);
+            return false;
+        }
         if (checkResult.updates().isEmpty()) {
             trackedLinkRepository.update(currentState);
-            return;
+            return true;
         }
 
         var chatIds = linkSubscriptionRepository.findByLinkId(trackedLink.id()).stream()
@@ -109,7 +123,7 @@ public class LinkUpdatePollingService {
         for (var update : checkResult.updates()) {
             if (!chatIds.isEmpty() && !notifyBot(trackedLink, update, chatIds)) {
                 trackedLinkRepository.update(currentState);
-                return;
+                return false;
             }
 
             currentState = currentState.withLastUpdatedAt(update.createdAt())
@@ -117,6 +131,7 @@ public class LinkUpdatePollingService {
         }
 
         trackedLinkRepository.update(currentState);
+        return true;
     }
 
     private boolean notifyBot(TrackedLink trackedLink, DetectedUpdate update, List<Long> chatIds) {
@@ -144,5 +159,36 @@ public class LinkUpdatePollingService {
                     .log("Bot update notification failed");
             return false;
         }
+    }
+
+    private void recordFailedLink(TrackedLink trackedLink, Map<Long, List<URI>> failedLinksByChat) {
+        for (var subscription : linkSubscriptionRepository.findByLinkId(trackedLink.id())) {
+            failedLinksByChat
+                    .computeIfAbsent(subscription.chatId(), ignored -> new ArrayList<>())
+                    .add(trackedLink.url());
+        }
+    }
+
+    private void sendFailureReports(Map<Long, List<URI>> failedLinksByChat) {
+        for (var entry : failedLinksByChat.entrySet()) {
+            var description = buildFailureReport(entry.getValue());
+            try {
+                botUpdatesClient.sendProcessingFailureReport(description, List.of(entry.getKey()));
+            } catch (RuntimeException exception) {
+                LOGGER.atWarn()
+                        .addKeyValue("operation", "sendFailureReport")
+                        .addKeyValue("chatId", entry.getKey())
+                        .addKeyValue("failedLinksCount", entry.getValue().size())
+                        .setCause(exception)
+                        .log("Failed links report delivery failed");
+            }
+        }
+    }
+
+    private String buildFailureReport(List<URI> failedUrls) {
+        var uniqueUrls = failedUrls.stream().map(URI::toString).distinct().sorted().toList();
+        return "Не удалось обработать ссылки:" + System.lineSeparator() + uniqueUrls.stream()
+                .map(url -> "- " + url)
+                .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
     }
 }

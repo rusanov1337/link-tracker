@@ -85,21 +85,21 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
                             event.preview(),
                             event.cursor()))
                     .toList();
-            return new LinkCheckResult(Optional.of(detectedUpdates.getLast().cursor()), detectedUpdates);
+            return new LinkCheckResult(Optional.of(detectedUpdates.getLast().cursor()), detectedUpdates, false);
         } catch (RestClientResponseException exception) {
             LOGGER.atWarn()
                     .addKeyValue("provider", "stackoverflow")
                     .addKeyValue("url", trackedLink.url())
                     .addKeyValue("status", exception.getStatusCode().value())
                     .log("StackOverflow request failed");
-            return LinkCheckResult.empty();
+            return LinkCheckResult.failure();
         } catch (RestClientException | IllegalArgumentException exception) {
             LOGGER.atWarn()
                     .addKeyValue("provider", "stackoverflow")
                     .addKeyValue("url", trackedLink.url())
                     .setCause(exception)
                     .log("StackOverflow request failed with exception");
-            return LinkCheckResult.empty();
+            return LinkCheckResult.failure();
         }
     }
 

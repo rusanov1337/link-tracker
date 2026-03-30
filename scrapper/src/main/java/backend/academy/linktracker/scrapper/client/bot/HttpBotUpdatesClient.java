@@ -1,6 +1,7 @@
 package backend.academy.linktracker.scrapper.client.bot;
 
 import backend.academy.linktracker.scrapper.client.bot.dto.LinkUpdateRequest;
+import backend.academy.linktracker.scrapper.client.bot.dto.ProcessingFailureReportRequest;
 import java.net.URI;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -36,6 +37,25 @@ public class HttpBotUpdatesClient implements BotUpdatesClient {
                     exception);
         } catch (RestClientException exception) {
             throw new BotUpdatesClientException("Bot updates endpoint call failed", exception);
+        }
+    }
+
+    @Override
+    public void sendProcessingFailureReport(String description, List<Long> tgChatIds) {
+        try {
+            restClient
+                    .post()
+                    .uri("/reports")
+                    .body(new ProcessingFailureReportRequest(description, tgChatIds))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            throw new BotUpdatesClientException(
+                    "Bot reports endpoint returned status "
+                            + exception.getStatusCode().value(),
+                    exception);
+        } catch (RestClientException exception) {
+            throw new BotUpdatesClientException("Bot reports endpoint call failed", exception);
         }
     }
 }

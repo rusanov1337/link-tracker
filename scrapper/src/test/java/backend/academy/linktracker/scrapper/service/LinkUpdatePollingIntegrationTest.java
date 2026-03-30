@@ -84,6 +84,7 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
     void checkUpdatesSkipsBotNotificationWhenExternalApiFails() {
         stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
                 .willReturn(aResponse().withStatus(503)));
+        stubFor(post(urlEqualTo("/reports")).willReturn(aResponse().withStatus(200)));
 
         scrapperLinkService.registerChat(1L);
         scrapperLinkService.addLink(
@@ -92,12 +93,14 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
         linkUpdatePollingService.checkUpdates();
 
         verify(0, postRequestedFor(urlEqualTo("/updates")));
+        verify(1, postRequestedFor(urlEqualTo("/reports")).withRequestBody(containing("https://github.com/octocat/hello-world")));
     }
 
     @Test
     void checkUpdatesSkipsBotNotificationWhenExternalApiBodyIsMalformed() {
         stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
                 .willReturn(aResponse().withStatus(200).withBody("[{\"id\":")));
+        stubFor(post(urlEqualTo("/reports")).willReturn(aResponse().withStatus(200)));
 
         scrapperLinkService.registerChat(1L);
         scrapperLinkService.addLink(
@@ -106,5 +109,6 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
         linkUpdatePollingService.checkUpdates();
 
         verify(0, postRequestedFor(urlEqualTo("/updates")));
+        verify(1, postRequestedFor(urlEqualTo("/reports")).withRequestBody(containing("https://github.com/octocat/hello-world")));
     }
 }
