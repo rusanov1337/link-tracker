@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.api;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
+import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,4 +16,7 @@ public interface BotApi {
 
     @PostMapping(path = "/updates", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<Void> processUpdate(@Valid @RequestBody LinkUpdate linkUpdate);
+
+    @PostMapping(path = "/reports", consumes = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<Void> processReport(@Valid @RequestBody ProcessingFailureReport report);
 }

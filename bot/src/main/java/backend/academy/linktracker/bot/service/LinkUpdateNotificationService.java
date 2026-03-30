@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.service;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
+import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.request.SendMessage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -58,6 +59,12 @@ public class LinkUpdateNotificationService {
         }
     }
 
+    public void processReport(ProcessingFailureReport report) {
+        for (var chatId : report.tgChatIds()) {
+            sendTextMessage(chatId, report.description());
+        }
+    }
+
     private String buildMessage(PendingLinkUpdate pendingUpdate) {
         return "Обновление по ссылке: " + pendingUpdate.url() + System.lineSeparator() + pendingUpdate.description();
     }
@@ -67,19 +74,26 @@ public class LinkUpdateNotificationService {
             justification =
                     "TelegramBot.execute may return null on invalid HTTP responses despite the static signature.")
     private boolean sendUpdate(PendingLinkUpdate pendingUpdate) {
-        var text = buildMessage(pendingUpdate);
+        return sendTextMessage(pendingUpdate.chatId(), buildMessage(pendingUpdate), pendingUpdate);
+    }
+
+    private boolean sendTextMessage(long chatId, String text) {
+        return sendTextMessage(chatId, text, null);
+    }
+
+    private boolean sendTextMessage(long chatId, String text, PendingLinkUpdate pendingUpdate) {
         try {
-            var response = telegramBot.execute(new SendMessage(pendingUpdate.chatId(), text));
+            var response = telegramBot.execute(new SendMessage(chatId, text));
             if (response == null) {
-                logNullResponse(pendingUpdate);
+                logNullResponse(chatId, pendingUpdate);
                 return false;
             }
             if (response.isOk()) {
                 log.atInfo()
                         .addKeyValue("operation", "sendUpdateNotification")
-                        .addKeyValue("chatId", pendingUpdate.chatId())
-                        .addKeyValue("updateId", pendingUpdate.updateId())
-                        .addKeyValue("url", pendingUpdate.url())
+                        .addKeyValue("chatId", chatId)
+                        .addKeyValue("updateId", pendingUpdate == null ? null : pendingUpdate.updateId())
+                        .addKeyValue("url", pendingUpdate == null ? null : pendingUpdate.url())
                         .addKeyValue("success", true)
                         .log("Update notification sent");
                 return true;
@@ -87,9 +101,9 @@ public class LinkUpdateNotificationService {
 
             log.atWarn()
                     .addKeyValue("operation", "sendUpdateNotification")
-                    .addKeyValue("chatId", pendingUpdate.chatId())
-                    .addKeyValue("updateId", pendingUpdate.updateId())
-                    .addKeyValue("url", pendingUpdate.url())
+                    .addKeyValue("chatId", chatId)
+                    .addKeyValue("updateId", pendingUpdate == null ? null : pendingUpdate.updateId())
+                    .addKeyValue("url", pendingUpdate == null ? null : pendingUpdate.url())
                     .addKeyValue("errorCode", response.errorCode())
                     .addKeyValue("errorDescription", response.description())
                     .addKeyValue("success", false)
@@ -98,9 +112,9 @@ public class LinkUpdateNotificationService {
         } catch (RuntimeException exception) {
             log.atWarn()
                     .addKeyValue("operation", "sendUpdateNotification")
-                    .addKeyValue("chatId", pendingUpdate.chatId())
-                    .addKeyValue("updateId", pendingUpdate.updateId())
-                    .addKeyValue("url", pendingUpdate.url())
+                    .addKeyValue("chatId", chatId)
+                    .addKeyValue("updateId", pendingUpdate == null ? null : pendingUpdate.updateId())
+                    .addKeyValue("url", pendingUpdate == null ? null : pendingUpdate.url())
                     .addKeyValue("success", false)
                     .setCause(exception)
                     .log("Update notification failed with exception");
@@ -108,12 +122,12 @@ public class LinkUpdateNotificationService {
         }
     }
 
-    private void logNullResponse(PendingLinkUpdate pendingUpdate) {
+    private void logNullResponse(long chatId, PendingLinkUpdate pendingUpdate) {
         log.atWarn()
                 .addKeyValue("operation", "sendUpdateNotification")
-                .addKeyValue("chatId", pendingUpdate.chatId())
-                .addKeyValue("updateId", pendingUpdate.updateId())
-                .addKeyValue("url", pendingUpdate.url())
+                .addKeyValue("chatId", chatId)
+                .addKeyValue("updateId", pendingUpdate == null ? null : pendingUpdate.updateId())
+                .addKeyValue("url", pendingUpdate == null ? null : pendingUpdate.url())
                 .addKeyValue("success", false)
                 .log("Update notification failed with null response");
     }

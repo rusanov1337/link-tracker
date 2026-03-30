@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.api;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
+import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import backend.academy.linktracker.bot.service.LinkUpdateNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,12 @@ public class BotController implements BotApi {
     @Override
     public ResponseEntity<Void> processUpdate(LinkUpdate linkUpdate) {
         linkUpdateNotificationService.process(linkUpdate);
+        return ResponseEntity.ok().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> processReport(ProcessingFailureReport report) {
+        linkUpdateNotificationService.processReport(report);
         return ResponseEntity.ok().build();
     }
 }

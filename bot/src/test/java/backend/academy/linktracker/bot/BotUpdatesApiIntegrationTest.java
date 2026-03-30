@@ -144,9 +144,47 @@ class BotUpdatesApiIntegrationTest {
         verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
     }
 
+    @Test
+    void validReportsRequestReturnsOk() throws Exception {
+        stubFor(post(urlMatching("/bot[^/]+/sendMessage"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .withBody("""
+                                {
+                                  "ok": true,
+                                  "result": {
+                                    "message_id": 100
+                                  }
+                                }
+                                """)));
+
+        var requestBody = """
+                {
+                  "description": "Failed links report",
+                  "tgChatIds": [111, 222]
+                }
+                """;
+        var response = sendReportsRequest(requestBody);
+
+        assertEquals(200, response.statusCode());
+        verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+    }
+
     private HttpResponse<String> sendUpdatesRequest(String jsonBody) throws Exception {
         var request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/updates"))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(10))
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> sendReportsRequest(String jsonBody) throws Exception {
+        var request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/reports"))
                 .header("Content-Type", "application/json")
                 .timeout(Duration.ofSeconds(10))
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))

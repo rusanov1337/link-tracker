@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
+import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import backend.academy.linktracker.bot.properties.TelegramProperties;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.response.SendResponse;
@@ -100,6 +101,22 @@ class LinkUpdateNotificationServiceTest {
         service.process(update);
 
         verify(telegramBot).execute(any());
+        assertEquals(0, pendingLinkUpdateStore.size());
+    }
+
+    @Test
+    void processReportSendsMessageToAllChatsWithoutQueueingPendingItems() {
+        var telegramBot = mock(TelegramBot.class);
+        var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+        var successResponse = successResponse();
+
+        when(telegramBot.execute(any())).thenReturn(successResponse);
+
+        service.processReport(new ProcessingFailureReport("Failed links", List.of(11L, 22L)));
+
+        verify(telegramBot, org.mockito.Mockito.times(2)).execute(any());
         assertEquals(0, pendingLinkUpdateStore.size());
     }
 
