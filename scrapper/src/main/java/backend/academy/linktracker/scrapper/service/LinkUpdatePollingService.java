@@ -11,10 +11,15 @@ import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,20 +54,22 @@ public class LinkUpdatePollingService {
     public void checkUpdates() {
         var checkedAt = Instant.now();
         var checkedLinksCount = 0;
-        var failedLinksByChat = new LinkedHashMap<Long, List<URI>>();
+        var failedLinksByChat = new ConcurrentHashMap<Long, Set<URI>>();
         long afterId = 0;
-        while (true) {
-            var links = trackedLinkRepository.findPageToCheck(checkedAt, afterId, schedulerProperties.getBatchSize());
-            if (links.isEmpty()) {
-                break;
-            }
+        var executorService = createBatchExecutor();
+        try {
+            while (true) {
+                var links = trackedLinkRepository.findPageToCheck(checkedAt, afterId, schedulerProperties.getBatchSize());
+                if (links.isEmpty()) {
+                    break;
+                }
 
-            for (var trackedLink : links) {
-                checkSingleLink(trackedLink, checkedAt, failedLinksByChat);
+                processBatch(links, checkedAt, failedLinksByChat, executorService);
+                checkedLinksCount += links.size();
+                afterId = links.getLast().id();
             }
-
-            checkedLinksCount += links.size();
-            afterId = links.getLast().id();
+        } finally {
+            shutdownExecutor(executorService);
         }
 
         LOGGER.atInfo()
@@ -72,7 +79,56 @@ public class LinkUpdatePollingService {
         sendFailureReports(failedLinksByChat);
     }
 
-    private void checkSingleLink(TrackedLink trackedLink, Instant checkedAt, Map<Long, List<URI>> failedLinksByChat) {
+    private ExecutorService createBatchExecutor() {
+        if (schedulerProperties.getParallelism() <= 1) {
+            return null;
+        }
+
+        return Executors.newFixedThreadPool(schedulerProperties.getParallelism());
+    }
+
+    private void shutdownExecutor(ExecutorService executorService) {
+        if (executorService == null) {
+            return;
+        }
+
+        executorService.shutdown();
+    }
+
+    private void processBatch(
+            List<TrackedLink> links,
+            Instant checkedAt,
+            Map<Long, Set<URI>> failedLinksByChat,
+            ExecutorService executorService) {
+        if (executorService == null || links.size() <= 1) {
+            links.forEach(link -> checkSingleLink(link, checkedAt, failedLinksByChat));
+            return;
+        }
+
+        var chunkSize = Math.max(1, (int) Math.ceil((double) links.size() / schedulerProperties.getParallelism()));
+        var tasks = new ArrayList<java.util.concurrent.Callable<Void>>();
+        for (int start = 0; start < links.size(); start += chunkSize) {
+            var end = Math.min(start + chunkSize, links.size());
+            var chunk = List.copyOf(links.subList(start, end));
+            tasks.add(() -> {
+                chunk.forEach(link -> checkSingleLink(link, checkedAt, failedLinksByChat));
+                return null;
+            });
+        }
+
+        try {
+            for (var future : executorService.invokeAll(tasks)) {
+                future.get();
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Link check batch processing was interrupted", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Link check batch processing failed", exception);
+        }
+    }
+
+    private void checkSingleLink(TrackedLink trackedLink, Instant checkedAt, Map<Long, Set<URI>> failedLinksByChat) {
         try {
             var client = findClient(trackedLink);
             if (client.isEmpty()) {
@@ -161,15 +217,15 @@ public class LinkUpdatePollingService {
         }
     }
 
-    private void recordFailedLink(TrackedLink trackedLink, Map<Long, List<URI>> failedLinksByChat) {
+    private void recordFailedLink(TrackedLink trackedLink, Map<Long, Set<URI>> failedLinksByChat) {
         for (var subscription : linkSubscriptionRepository.findByLinkId(trackedLink.id())) {
             failedLinksByChat
-                    .computeIfAbsent(subscription.chatId(), ignored -> new ArrayList<>())
+                    .computeIfAbsent(subscription.chatId(), ignored -> ConcurrentHashMap.newKeySet())
                     .add(trackedLink.url());
         }
     }
 
-    private void sendFailureReports(Map<Long, List<URI>> failedLinksByChat) {
+    private void sendFailureReports(Map<Long, Set<URI>> failedLinksByChat) {
         for (var entry : failedLinksByChat.entrySet()) {
             var description = buildFailureReport(entry.getValue());
             try {
@@ -185,8 +241,8 @@ public class LinkUpdatePollingService {
         }
     }
 
-    private String buildFailureReport(List<URI> failedUrls) {
-        var uniqueUrls = failedUrls.stream().map(URI::toString).distinct().sorted().toList();
+    private String buildFailureReport(Collection<URI> failedUrls) {
+        var uniqueUrls = failedUrls.stream().map(URI::toString).sorted().toList();
         return "Не удалось обработать ссылки:" + System.lineSeparator() + uniqueUrls.stream()
                 .map(url -> "- " + url)
                 .collect(java.util.stream.Collectors.joining(System.lineSeparator()));

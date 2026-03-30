@@ -15,8 +15,14 @@ import backend.academy.linktracker.scrapper.repository.memory.InMemoryTrackedLin
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class LinkUpdatePollingServiceTest {
@@ -131,7 +137,7 @@ class LinkUpdatePollingServiceTest {
 
         service.checkUpdates();
 
-        assertEquals(1, botClient.attempts);
+        assertEquals(1, botClient.attempts.get());
         var storedLink = trackedLinkRepository.findById(trackedLink.id()).orElseThrow();
         assertEquals(initialUpdatedAt, storedLink.lastUpdatedAt());
         assertEquals(null, storedLink.lastEventAt());
@@ -240,14 +246,62 @@ class LinkUpdatePollingServiceTest {
         assertEquals(3, botClient.notifications.size());
     }
 
+    @Test
+    void checkUpdatesProcessesBatchInParallelWhenParallelismConfigured() {
+        var trackedLinkRepository = new InMemoryTrackedLinkRepository();
+        var linkSubscriptionRepository = new InMemoryLinkSubscriptionRepository();
+        var initialUpdatedAt = Instant.parse("2025-07-01T00:00:00Z");
+        var first = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-one"), initialUpdatedAt);
+        var second = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-two"), initialUpdatedAt);
+        var third = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-three"), initialUpdatedAt);
+        var fourth = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-four"), initialUpdatedAt);
+
+        linkSubscriptionRepository.add(new LinkSubscription(11L, first.id(), List.of(), List.of()));
+        linkSubscriptionRepository.add(new LinkSubscription(22L, second.id(), List.of(), List.of()));
+        linkSubscriptionRepository.add(new LinkSubscription(33L, third.id(), List.of(), List.of()));
+        linkSubscriptionRepository.add(new LinkSubscription(44L, fourth.id(), List.of(), List.of()));
+
+        var externalClient = new ParallelTrackingExternalLinkClient(Set.of(first.url(), second.url(), third.url(), fourth.url()));
+        var botClient = new RecordingBotUpdatesClient(false);
+        var service = newService(
+                trackedLinkRepository,
+                linkSubscriptionRepository,
+                List.of(externalClient),
+                botClient,
+                4,
+                2);
+
+        service.checkUpdates();
+
+        assertEquals(4, botClient.notifications.size());
+        assertTrue(externalClient.maxActiveCalls() > 1);
+    }
+
     private LinkUpdatePollingService newService(
             InMemoryTrackedLinkRepository trackedLinkRepository,
             InMemoryLinkSubscriptionRepository linkSubscriptionRepository,
             List<ExternalLinkClient> externalClients,
             RecordingBotUpdatesClient botClient,
             int batchSize) {
+        return newService(
+                trackedLinkRepository,
+                linkSubscriptionRepository,
+                externalClients,
+                botClient,
+                batchSize,
+                1);
+    }
+
+    private LinkUpdatePollingService newService(
+            InMemoryTrackedLinkRepository trackedLinkRepository,
+            InMemoryLinkSubscriptionRepository linkSubscriptionRepository,
+            List<ExternalLinkClient> externalClients,
+            RecordingBotUpdatesClient botClient,
+            int batchSize,
+            int parallelism) {
         var schedulerProperties = new SchedulerProperties();
         schedulerProperties.setBatchSize(batchSize);
+        schedulerProperties.setParallelism(parallelism);
         return new LinkUpdatePollingService(
                 trackedLinkRepository,
                 linkSubscriptionRepository,
@@ -260,10 +314,10 @@ class LinkUpdatePollingServiceTest {
     private record Notification(long id, URI url, String description, List<Long> tgChatIds) {}
 
     private static final class RecordingBotUpdatesClient implements BotUpdatesClient {
-        private final List<Notification> notifications = new ArrayList<>();
+        private final List<Notification> notifications = Collections.synchronizedList(new ArrayList<>());
         private final boolean fail;
-        private final List<ReportNotification> reports = new ArrayList<>();
-        private int attempts;
+        private final List<ReportNotification> reports = Collections.synchronizedList(new ArrayList<>());
+        private final AtomicInteger attempts = new AtomicInteger();
 
         private RecordingBotUpdatesClient(boolean fail) {
             this.fail = fail;
@@ -271,7 +325,7 @@ class LinkUpdatePollingServiceTest {
 
         @Override
         public void sendLinkUpdate(long id, URI url, String description, List<Long> tgChatIds) {
-            attempts++;
+            attempts.incrementAndGet();
             if (fail) {
                 throw new BotUpdatesClientException("Notification failed", new IllegalStateException("failure"));
             }
@@ -306,6 +360,56 @@ class LinkUpdatePollingServiceTest {
         public LinkCheckResult fetchUpdates(
                 backend.academy.linktracker.scrapper.domain.TrackedLink trackedLink) {
             return checkResult;
+        }
+    }
+
+    private static final class ParallelTrackingExternalLinkClient implements ExternalLinkClient {
+        private final Set<URI> supportedUrls;
+        private final CountDownLatch firstWaveLatch = new CountDownLatch(2);
+        private final AtomicInteger activeCalls = new AtomicInteger();
+        private final AtomicInteger maxActiveCalls = new AtomicInteger();
+
+        private ParallelTrackingExternalLinkClient(Set<URI> supportedUrls) {
+            this.supportedUrls = supportedUrls;
+        }
+
+        @Override
+        public boolean supports(URI url) {
+            return supportedUrls.contains(url);
+        }
+
+        @Override
+        public LinkCheckResult fetchUpdates(
+                backend.academy.linktracker.scrapper.domain.TrackedLink trackedLink) {
+            var active = activeCalls.incrementAndGet();
+            maxActiveCalls.accumulateAndGet(active, Math::max);
+            firstWaveLatch.countDown();
+            try {
+                if (!firstWaveLatch.await(1, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Parallel execution did not start in time");
+                }
+                Thread.sleep(50);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Parallel execution interrupted", exception);
+            } finally {
+                activeCalls.decrementAndGet();
+            }
+
+            return new LinkCheckResult(
+                    Optional.of(Long.toString(trackedLink.id())),
+                    List.of(new DetectedUpdate(
+                            backend.academy.linktracker.scrapper.domain.UpdateProvider.GITHUB,
+                            backend.academy.linktracker.scrapper.domain.UpdateEventType.ISSUE,
+                            trackedLink.url().getPath(),
+                            "octocat",
+                            trackedLink.lastUpdatedAt().plusSeconds(60),
+                            "Issue preview",
+                            Long.toString(trackedLink.id()))));
+        }
+
+        private int maxActiveCalls() {
+            return maxActiveCalls.get();
         }
     }
 }

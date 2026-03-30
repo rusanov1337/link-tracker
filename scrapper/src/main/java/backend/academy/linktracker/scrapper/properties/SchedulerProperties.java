@@ -26,4 +26,7 @@ public class SchedulerProperties {
 
     @Min(1)
     private int batchSize = 500;
+
+    @Min(1)
+    private int parallelism = 1;
 }

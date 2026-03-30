@@ -1,6 +1,7 @@
 app:
   scheduler:
     enabled: false
+    parallelism: 1
   bot:
     base-url: ${wiremock.server.baseUrl}
   stackoverflow:
