@@ -59,7 +59,8 @@ public class LinkUpdatePollingService {
         var executorService = createBatchExecutor();
         try {
             while (true) {
-                var links = trackedLinkRepository.findPageToCheck(checkedAt, afterId, schedulerProperties.getBatchSize());
+                var links =
+                        trackedLinkRepository.findPageToCheck(checkedAt, afterId, schedulerProperties.getBatchSize());
                 if (links.isEmpty()) {
                     break;
                 }
@@ -182,7 +183,8 @@ public class LinkUpdatePollingService {
                 return false;
             }
 
-            currentState = currentState.withLastUpdatedAt(update.createdAt())
+            currentState = currentState
+                    .withLastUpdatedAt(update.createdAt())
                     .withLastEventState(update.createdAt(), update.cursor());
         }
 
@@ -243,8 +245,9 @@ public class LinkUpdatePollingService {
 
     private String buildFailureReport(Collection<URI> failedUrls) {
         var uniqueUrls = failedUrls.stream().map(URI::toString).sorted().toList();
-        return "Не удалось обработать ссылки:" + System.lineSeparator() + uniqueUrls.stream()
-                .map(url -> "- " + url)
-                .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
+        return "Не удалось обработать ссылки:" + System.lineSeparator()
+                + uniqueUrls.stream()
+                        .map(url -> "- " + url)
+                        .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
     }
 }

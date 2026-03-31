@@ -93,7 +93,10 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
         linkUpdatePollingService.checkUpdates();
 
         verify(0, postRequestedFor(urlEqualTo("/updates")));
-        verify(1, postRequestedFor(urlEqualTo("/reports")).withRequestBody(containing("https://github.com/octocat/hello-world")));
+        verify(
+                1,
+                postRequestedFor(urlEqualTo("/reports"))
+                        .withRequestBody(containing("https://github.com/octocat/hello-world")));
     }
 
     @Test
@@ -109,6 +112,9 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
         linkUpdatePollingService.checkUpdates();
 
         verify(0, postRequestedFor(urlEqualTo("/updates")));
-        verify(1, postRequestedFor(urlEqualTo("/reports")).withRequestBody(containing("https://github.com/octocat/hello-world")));
+        verify(
+                1,
+                postRequestedFor(urlEqualTo("/reports"))
+                        .withRequestBody(containing("https://github.com/octocat/hello-world")));
     }
 }

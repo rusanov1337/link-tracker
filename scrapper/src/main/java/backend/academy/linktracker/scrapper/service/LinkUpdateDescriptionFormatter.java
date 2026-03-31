@@ -11,10 +11,11 @@ public class LinkUpdateDescriptionFormatter {
 
     public String format(DetectedUpdate update) {
         var titleLabel = update.provider() == UpdateProvider.STACKOVERFLOW ? "Тема" : "Название";
-        var previewLabel = switch (update.eventType()) {
-            case ISSUE, PULL_REQUEST -> "Описание";
-            case ANSWER, COMMENT -> "Превью";
-        };
+        var previewLabel =
+                switch (update.eventType()) {
+                    case ISSUE, PULL_REQUEST -> "Описание";
+                    case ANSWER, COMMENT -> "Превью";
+                };
         return String.join(
                 System.lineSeparator(),
                 eventLabel(update.eventType()),

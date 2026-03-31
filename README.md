@@ -63,7 +63,7 @@ java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
 - `/help`
 - любая неизвестная команда, например `/abc`
 
-## PostgreSQL И Scrapper (HW3)
+## PostgreSQL, Bot и Scrapper (HW3-HW4)
 
 ### Дополнительно требуется
 
@@ -72,9 +72,11 @@ java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
 
 ### Переменные окружения
 
-Для локального запуска `scrapper`:
+Для локального запуска `bot` и `scrapper`:
 
 ```bash
+export TELEGRAM_TOKEN="telegram_bot_token"
+export SCRAPPER_BASE_URL="http://localhost:8081"
 export SCRAPPER_DB_URL="jdbc:postgresql://localhost:5432/link_tracker"
 export SCRAPPER_DB_USERNAME="postgres"
 export SCRAPPER_DB_PASSWORD="postgres"
@@ -88,6 +90,8 @@ export BOT_BASE_URL="http://localhost:8080"
 export GITHUB_TOKEN=""
 export STACKOVERFLOW_KEY=""
 export STACKOVERFLOW_ACCESS_TOKEN=""
+export SCRAPPER_SCHEDULER_BATCH_SIZE="500"
+export SCRAPPER_SCHEDULER_PARALLELISM="1"
 ```
 
 ### Локальный запуск PostgreSQL
@@ -102,7 +106,25 @@ docker compose up -d postgres
 docker compose run --rm migrations
 ```
 
-### Локальный запуск scrapper
+### Локальный запуск сервисов
+
+Для `hw-4` нужно запускать оба сервиса:
+
+```bash
+java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
+```
+
+```bash
+java -jar ./scrapper/target/scrapper-0.0.1.jar
+```
+
+Если запускаете из IDE:
+
+- сначала поднимите `postgres` через `docker compose`
+- затем запустите `bot`
+- затем запустите `scrapper`
+
+### Локальный запуск только scrapper
 
 ```bash
 java -jar ./scrapper/target/scrapper-0.0.1.jar
@@ -110,10 +132,23 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 
 При запуске `scrapper` из IDE миграции применяются автоматически.
 
+### Проверка hw-4 локально
+
+- запустите `bot` и `scrapper`
+- в Telegram выполните `/start`
+- добавьте ссылку через `/track`
+- дождитесь запуска планировщика в `scrapper`
+- проверьте, что уведомление приходит в `bot`
+
 ### Переключение доступа к БД
 
 - `SCRAPPER_DB_ACCESS_TYPE=SQL`
 - `SCRAPPER_DB_ACCESS_TYPE=ORM`
+
+### Настройки планировщика
+
+- `SCRAPPER_SCHEDULER_BATCH_SIZE` — размер батча ссылок
+- `SCRAPPER_SCHEDULER_PARALLELISM` — количество потоков для обработки батча
 
 Для интеграционных тестов нужен запущенный Docker.
 

@@ -19,7 +19,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -108,7 +107,11 @@ class LinkUpdatePollingServiceTest {
         assertEquals(0, botClient.notifications.size());
         assertEquals(2, botClient.reports.size());
         assertTrue(botClient.reports.getFirst().description().contains("Не удалось обработать ссылки"));
-        assertTrue(botClient.reports.getFirst().description().contains(trackedLink.url().toString()));
+        assertTrue(botClient
+                .reports
+                .getFirst()
+                .description()
+                .contains(trackedLink.url().toString()));
     }
 
     @Test
@@ -253,23 +256,21 @@ class LinkUpdatePollingServiceTest {
         var initialUpdatedAt = Instant.parse("2025-07-01T00:00:00Z");
         var first = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-one"), initialUpdatedAt);
         var second = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-two"), initialUpdatedAt);
-        var third = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-three"), initialUpdatedAt);
-        var fourth = trackedLinkRepository.create(URI.create("https://github.com/user/parallel-four"), initialUpdatedAt);
+        var third =
+                trackedLinkRepository.create(URI.create("https://github.com/user/parallel-three"), initialUpdatedAt);
+        var fourth =
+                trackedLinkRepository.create(URI.create("https://github.com/user/parallel-four"), initialUpdatedAt);
 
         linkSubscriptionRepository.add(new LinkSubscription(11L, first.id(), List.of(), List.of()));
         linkSubscriptionRepository.add(new LinkSubscription(22L, second.id(), List.of(), List.of()));
         linkSubscriptionRepository.add(new LinkSubscription(33L, third.id(), List.of(), List.of()));
         linkSubscriptionRepository.add(new LinkSubscription(44L, fourth.id(), List.of(), List.of()));
 
-        var externalClient = new ParallelTrackingExternalLinkClient(Set.of(first.url(), second.url(), third.url(), fourth.url()));
+        var externalClient =
+                new ParallelTrackingExternalLinkClient(Set.of(first.url(), second.url(), third.url(), fourth.url()));
         var botClient = new RecordingBotUpdatesClient(false);
-        var service = newService(
-                trackedLinkRepository,
-                linkSubscriptionRepository,
-                List.of(externalClient),
-                botClient,
-                4,
-                2);
+        var service =
+                newService(trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient, 4, 2);
 
         service.checkUpdates();
 
@@ -283,13 +284,7 @@ class LinkUpdatePollingServiceTest {
             List<ExternalLinkClient> externalClients,
             RecordingBotUpdatesClient botClient,
             int batchSize) {
-        return newService(
-                trackedLinkRepository,
-                linkSubscriptionRepository,
-                externalClients,
-                botClient,
-                batchSize,
-                1);
+        return newService(trackedLinkRepository, linkSubscriptionRepository, externalClients, botClient, batchSize, 1);
     }
 
     private LinkUpdatePollingService newService(
@@ -357,8 +352,7 @@ class LinkUpdatePollingServiceTest {
         }
 
         @Override
-        public LinkCheckResult fetchUpdates(
-                backend.academy.linktracker.scrapper.domain.TrackedLink trackedLink) {
+        public LinkCheckResult fetchUpdates(backend.academy.linktracker.scrapper.domain.TrackedLink trackedLink) {
             return checkResult;
         }
     }
@@ -379,8 +373,7 @@ class LinkUpdatePollingServiceTest {
         }
 
         @Override
-        public LinkCheckResult fetchUpdates(
-                backend.academy.linktracker.scrapper.domain.TrackedLink trackedLink) {
+        public LinkCheckResult fetchUpdates(backend.academy.linktracker.scrapper.domain.TrackedLink trackedLink) {
             var active = activeCalls.incrementAndGet();
             maxActiveCalls.accumulateAndGet(active, Math::max);
             firstWaveLatch.countDown();

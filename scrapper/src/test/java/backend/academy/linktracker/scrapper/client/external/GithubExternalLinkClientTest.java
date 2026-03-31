@@ -74,7 +74,9 @@ class GithubExternalLinkClientTest {
         assertEquals("octocat", result.updates().getFirst().author());
         assertEquals("Issue body preview", result.updates().getFirst().preview());
         assertEquals("101", result.updates().getFirst().cursor());
-        assertEquals(Instant.parse("2025-01-01T12:00:00Z"), result.updates().getFirst().createdAt());
+        assertEquals(
+                Instant.parse("2025-01-01T12:00:00Z"),
+                result.updates().getFirst().createdAt());
     }
 
     @Test

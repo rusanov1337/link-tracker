@@ -156,7 +156,7 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
 
     private List<StackoverflowEvent> fetchQuestionCommentEvents(String questionId) {
         var responseBody = executeGet("/2.3/questions/{id}/comments", questionId, true);
-        return parseQuestionCommentEvents(responseBody);
+        return parseCommentEvents(responseBody, "question-comment");
     }
 
     private List<StackoverflowEvent> fetchAnswerCommentEvents(List<Long> answerIds) {
@@ -164,9 +164,10 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
             return List.of();
         }
 
-        var encodedAnswerIds = answerIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(";"));
+        var encodedAnswerIds =
+                answerIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(";"));
         var responseBody = executeGet("/2.3/answers/{id}/comments", encodedAnswerIds, true);
-        return parseAnswerCommentEvents(responseBody);
+        return parseCommentEvents(responseBody, "answer-comment");
     }
 
     private String executeGet(String path, String id, boolean includeBody) {
@@ -245,7 +246,7 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
     }
 
     @SuppressWarnings("unchecked")
-    private List<StackoverflowEvent> parseQuestionCommentEvents(String responseBody) {
+    private List<StackoverflowEvent> parseCommentEvents(String responseBody, String cursorPrefix) {
         if (responseBody == null || responseBody.isBlank()) {
             return List.of();
         }
@@ -274,42 +275,7 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
                     Instant.ofEpochSecond(createdAtRaw.longValue()),
                     extractOwnerDisplayName((Map<String, Object>) itemMap),
                     extractBodyPreview((Map<String, Object>) itemMap),
-                    "question-comment"));
-        }
-        return events;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<StackoverflowEvent> parseAnswerCommentEvents(String responseBody) {
-        if (responseBody == null || responseBody.isBlank()) {
-            return List.of();
-        }
-
-        Map<String, Object> parsed = JsonParserFactory.getJsonParser().parseMap(responseBody);
-        var items = parsed.get("items");
-        if (!(items instanceof List<?> itemsList) || itemsList.isEmpty()) {
-            return List.of();
-        }
-
-        var events = new ArrayList<StackoverflowEvent>();
-        for (var item : itemsList) {
-            if (!(item instanceof Map<?, ?> itemMap)) {
-                continue;
-            }
-
-            var commentId = ((Map<String, Object>) itemMap).get("comment_id");
-            var createdAt = ((Map<String, Object>) itemMap).get("creation_date");
-            if (!(commentId instanceof Number commentIdRaw) || !(createdAt instanceof Number createdAtRaw)) {
-                continue;
-            }
-
-            events.add(new StackoverflowEvent(
-                    UpdateEventType.COMMENT,
-                    commentIdRaw.longValue(),
-                    Instant.ofEpochSecond(createdAtRaw.longValue()),
-                    extractOwnerDisplayName((Map<String, Object>) itemMap),
-                    extractBodyPreview((Map<String, Object>) itemMap),
-                    "answer-comment"));
+                    cursorPrefix));
         }
         return events;
     }
@@ -377,12 +343,13 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
             return new Cursor(Integer.MIN_VALUE, Long.MIN_VALUE);
         }
 
-        var typeRank = switch (parts[0]) {
-            case "answer" -> 0;
-            case "question-comment" -> 1;
-            case "answer-comment" -> 2;
-            default -> Integer.MIN_VALUE;
-        };
+        var typeRank =
+                switch (parts[0]) {
+                    case "answer" -> 0;
+                    case "question-comment" -> 1;
+                    case "answer-comment" -> 2;
+                    default -> Integer.MIN_VALUE;
+                };
         return new Cursor(typeRank, Long.parseLong(parts[1]));
     }
 

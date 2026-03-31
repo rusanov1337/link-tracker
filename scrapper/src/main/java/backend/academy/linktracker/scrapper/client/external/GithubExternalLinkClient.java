@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +57,8 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
             var source = ownerRepo.orElseThrow();
             var request = restClient
                     .get()
-                    .uri(uriBuilder -> uriBuilder.path("/repos/{owner}/{repo}/issues")
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/repos/{owner}/{repo}/issues")
                             .queryParam("state", "all")
                             .queryParam("sort", "created")
                             .queryParam("direction", "desc")

@@ -69,10 +69,6 @@ public class LinkUpdateNotificationService {
         return "Обновление по ссылке: " + pendingUpdate.url() + System.lineSeparator() + pendingUpdate.description();
     }
 
-    @SuppressFBWarnings(
-            value = "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
-            justification =
-                    "TelegramBot.execute may return null on invalid HTTP responses despite the static signature.")
     private boolean sendUpdate(PendingLinkUpdate pendingUpdate) {
         return sendTextMessage(pendingUpdate.chatId(), buildMessage(pendingUpdate), pendingUpdate);
     }
@@ -81,6 +77,10 @@ public class LinkUpdateNotificationService {
         return sendTextMessage(chatId, text, null);
     }
 
+    @SuppressFBWarnings(
+            value = "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
+            justification =
+                    "TelegramBot.execute may return null on invalid HTTP responses despite the static signature.")
     private boolean sendTextMessage(long chatId, String text, PendingLinkUpdate pendingUpdate) {
         try {
             var response = telegramBot.execute(new SendMessage(chatId, text));
