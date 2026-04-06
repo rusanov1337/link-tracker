@@ -129,7 +129,7 @@ class BotScrapperContainerE2ETest {
     }
 
     private static GenericContainer<?> createPostgresContainer(Network network) {
-        return new GenericContainer<>(DockerImageName.parse("postgres:18-alpine"))
+        return new GenericContainer<>(DockerImageName.parse("postgres:17-alpine"))
                 .withNetwork(network)
                 .withNetworkAliases("postgres")
                 .withExposedPorts(POSTGRES_INTERNAL_PORT)

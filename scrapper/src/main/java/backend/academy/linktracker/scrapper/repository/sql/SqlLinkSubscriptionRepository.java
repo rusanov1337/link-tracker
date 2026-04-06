@@ -2,12 +2,12 @@ package backend.academy.linktracker.scrapper.repository.sql;
 
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
+import backend.academy.linktracker.scrapper.repository.support.SubscriptionRepositorySupport;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -178,7 +178,7 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
     }
 
     private List<SubscriptionKey> findKeysByChatId(long chatId, int limit, int offset) {
-        validatePage(limit, offset);
+        SubscriptionRepositorySupport.validatePage(limit, offset);
         return jdbcClient
                 .sql("""
                     select chat_id, link_id
@@ -195,7 +195,7 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
     }
 
     private List<SubscriptionKey> findKeysByLinkId(long linkId, int limit, int offset) {
-        validatePage(limit, offset);
+        SubscriptionRepositorySupport.validatePage(limit, offset);
         return jdbcClient
                 .sql("""
                     select chat_id, link_id
@@ -212,7 +212,7 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
     }
 
     private List<SubscriptionKey> findAllKeys(int limit, int offset) {
-        validatePage(limit, offset);
+        SubscriptionRepositorySupport.validatePage(limit, offset);
         return jdbcClient
                 .sql("""
                     select chat_id, link_id
@@ -270,23 +270,8 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
         return statement.query(rowMapper).list();
     }
 
-    private void validatePage(int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("Page limit must be positive");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Page offset must be non-negative");
-        }
-    }
-
     private Map<SubscriptionKey, List<String>> groupValues(List<SubscriptionValue> values) {
-        var valuesBySubscription = new HashMap<SubscriptionKey, List<String>>();
-        for (var value : values) {
-            valuesBySubscription
-                    .computeIfAbsent(value.key(), ignored -> new ArrayList<>())
-                    .add(value.value());
-        }
-        return Map.copyOf(valuesBySubscription);
+        return SubscriptionRepositorySupport.groupValues(values, SubscriptionValue::key, SubscriptionValue::value);
     }
 
     private RowMapper<SubscriptionValue> valueRowMapper(String columnName) {
@@ -296,12 +281,7 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
     }
 
     private void insertTags(LinkSubscription subscription) {
-        insertValues(
-                "subscription_tags",
-                "tag",
-                subscription.chatId(),
-                subscription.linkId(),
-                subscription.tags());
+        insertValues("subscription_tags", "tag", subscription.chatId(), subscription.linkId(), subscription.tags());
     }
 
     private void insertFilters(LinkSubscription subscription) {

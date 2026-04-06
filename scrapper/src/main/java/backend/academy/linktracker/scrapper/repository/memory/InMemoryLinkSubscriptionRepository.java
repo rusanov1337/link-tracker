@@ -34,25 +34,35 @@ public class InMemoryLinkSubscriptionRepository implements LinkSubscriptionRepos
 
     @Override
     public List<LinkSubscription> findByChatId(long chatId, int limit, int offset) {
-        return paginate(subscriptionsByKey.values().stream()
-                .filter(subscription -> subscription.chatId() == chatId)
-                .sorted(Comparator.comparingLong(LinkSubscription::linkId))
-                .toList(), limit, offset);
+        return paginate(
+                subscriptionsByKey.values().stream()
+                        .filter(subscription -> subscription.chatId() == chatId)
+                        .sorted(Comparator.comparingLong(LinkSubscription::linkId))
+                        .toList(),
+                limit,
+                offset);
     }
 
     @Override
     public List<LinkSubscription> findByLinkId(long linkId, int limit, int offset) {
-        return paginate(subscriptionsByKey.values().stream()
-                .filter(subscription -> subscription.linkId() == linkId)
-                .sorted(Comparator.comparingLong(LinkSubscription::chatId))
-                .toList(), limit, offset);
+        return paginate(
+                subscriptionsByKey.values().stream()
+                        .filter(subscription -> subscription.linkId() == linkId)
+                        .sorted(Comparator.comparingLong(LinkSubscription::chatId))
+                        .toList(),
+                limit,
+                offset);
     }
 
     @Override
     public List<LinkSubscription> findAll(int limit, int offset) {
-        return paginate(subscriptionsByKey.values().stream()
-                .sorted(Comparator.comparingLong(LinkSubscription::chatId).thenComparingLong(LinkSubscription::linkId))
-                .toList(), limit, offset);
+        return paginate(
+                subscriptionsByKey.values().stream()
+                        .sorted(Comparator.comparingLong(LinkSubscription::chatId)
+                                .thenComparingLong(LinkSubscription::linkId))
+                        .toList(),
+                limit,
+                offset);
     }
 
     @Override

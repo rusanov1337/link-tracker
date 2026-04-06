@@ -8,11 +8,11 @@ import backend.academy.linktracker.scrapper.repository.orm.entity.SubscriptionFi
 import backend.academy.linktracker.scrapper.repository.orm.entity.SubscriptionId;
 import backend.academy.linktracker.scrapper.repository.orm.entity.SubscriptionTagEntity;
 import backend.academy.linktracker.scrapper.repository.orm.entity.SubscriptionTagId;
+import backend.academy.linktracker.scrapper.repository.support.SubscriptionRepositorySupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -73,7 +73,7 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
 
     @Override
     public List<LinkSubscription> findByChatId(long chatId, int limit, int offset) {
-        validatePage(limit, offset);
+        SubscriptionRepositorySupport.validatePage(limit, offset);
         var entities = entityManager
                 .createQuery(
                         "select s from SubscriptionEntity s where s.id.chatId = :chatId order by s.id.linkId",
@@ -87,7 +87,7 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
 
     @Override
     public List<LinkSubscription> findByLinkId(long linkId, int limit, int offset) {
-        validatePage(limit, offset);
+        SubscriptionRepositorySupport.validatePage(limit, offset);
         var entities = entityManager
                 .createQuery(
                         "select s from SubscriptionEntity s where s.id.linkId = :linkId order by s.id.chatId",
@@ -101,7 +101,7 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
 
     @Override
     public List<LinkSubscription> findAll(int limit, int offset) {
-        validatePage(limit, offset);
+        SubscriptionRepositorySupport.validatePage(limit, offset);
         var entities = entityManager
                 .createQuery(
                         "select s from SubscriptionEntity s order by s.id.chatId, s.id.linkId",
@@ -127,7 +127,8 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
 
     private List<SubscriptionKey> toKeys(List<SubscriptionEntity> entities) {
         return entities.stream()
-                .map(entity -> new SubscriptionKey(entity.getId().getChatId(), entity.getId().getLinkId()))
+                .map(entity -> new SubscriptionKey(
+                        entity.getId().getChatId(), entity.getId().getLinkId()))
                 .toList();
     }
 
@@ -143,7 +144,8 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
         var filtersBySubscription = groupValues(filterValues);
         var subscriptions = new ArrayList<LinkSubscription>(entities.size());
         for (var entity : entities) {
-            var key = new SubscriptionKey(entity.getId().getChatId(), entity.getId().getLinkId());
+            var key = new SubscriptionKey(
+                    entity.getId().getChatId(), entity.getId().getLinkId());
             subscriptions.add(new LinkSubscription(
                     key.chatId(),
                     key.linkId(),
@@ -239,29 +241,13 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
         return query.getResultList().stream().map(this::mapValue).toList();
     }
 
-    private void validatePage(int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("Page limit must be positive");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Page offset must be non-negative");
-        }
-    }
-
     private Map<SubscriptionKey, List<String>> groupValues(List<SubscriptionValue> values) {
-        var valuesBySubscription = new HashMap<SubscriptionKey, List<String>>();
-        for (var value : values) {
-            valuesBySubscription
-                    .computeIfAbsent(value.key(), ignored -> new ArrayList<>())
-                    .add(value.value());
-        }
-        return Map.copyOf(valuesBySubscription);
+        return SubscriptionRepositorySupport.groupValues(values, SubscriptionValue::key, SubscriptionValue::value);
     }
 
     private SubscriptionValue mapValue(Object[] row) {
         return new SubscriptionValue(
-                new SubscriptionKey(((Number) row[0]).longValue(), ((Number) row[1]).longValue()),
-                (String) row[2]);
+                new SubscriptionKey(((Number) row[0]).longValue(), ((Number) row[1]).longValue()), (String) row[2]);
     }
 
     private record SubscriptionKey(long chatId, long linkId) {}

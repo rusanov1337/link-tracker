@@ -199,6 +199,7 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
         if (value instanceof Timestamp timestamp) {
             return timestamp.toInstant();
         }
-        throw new IllegalArgumentException("Unsupported temporal value type: " + value.getClass().getName());
+        throw new IllegalArgumentException(
+                "Unsupported temporal value type: " + value.getClass().getName());
     }
 }

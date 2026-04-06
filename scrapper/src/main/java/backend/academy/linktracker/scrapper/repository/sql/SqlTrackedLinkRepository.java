@@ -92,10 +92,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                     from links
                     where id in (:ids)
                     order by id
-                    """)
-                .param("ids", ids)
-                .query(trackedLinkRowMapper)
-                .list();
+                    """).param("ids", ids).query(trackedLinkRowMapper).list();
     }
 
     @Override
