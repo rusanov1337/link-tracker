@@ -7,6 +7,7 @@ import backend.academy.linktracker.scrapper.repository.support.SupportedLinkCano
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.net.URI;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -25,15 +26,18 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     @Override
     public TrackedLink create(URI url, Instant now) {
         var canonicalUrl = SupportedLinkCanonicalizer.canonicalize(url);
-        var existing = findEntityByUrl(canonicalUrl);
-        if (existing.isPresent()) {
-            return toDomain(existing.orElseThrow());
-        }
-
-        var entity = new LinkEntity(null, canonicalUrl.toString(), now, now, now);
-        entityManager.persist(entity);
-        entityManager.flush();
-        return toDomain(entity);
+        entityManager
+                .createNativeQuery("""
+                        insert into links (url, created_at, last_checked_at, last_updated_at)
+                        values (:url, :createdAt, :lastCheckedAt, :lastUpdatedAt)
+                        on conflict (url) do nothing
+                        """)
+                .setParameter("url", canonicalUrl.toString())
+                .setParameter("createdAt", Timestamp.from(now))
+                .setParameter("lastCheckedAt", Timestamp.from(now))
+                .setParameter("lastUpdatedAt", Timestamp.from(now))
+                .executeUpdate();
+        return findEntityByUrl(canonicalUrl).map(this::toDomain).orElseThrow();
     }
 
     @Override
@@ -44,6 +48,40 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     @Override
     public Optional<TrackedLink> findByUrl(URI url) {
         return findEntityByUrl(SupportedLinkCanonicalizer.canonicalize(url)).map(this::toDomain);
+    }
+
+    @Override
+    public List<TrackedLink> findByIds(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        return entityManager
+                .createQuery("select l from LinkEntity l where l.id in :ids order by l.id", LinkEntity.class)
+                .setParameter("ids", ids)
+                .getResultList()
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<TrackedLink> lockNextPageToCheck(Instant checkedBefore, int limit) {
+        @SuppressWarnings("unchecked")
+        var rows = (List<Object[]>) entityManager
+                .createNativeQuery(
+                        """
+                        select id, url, created_at, last_checked_at, last_updated_at
+                        from links
+                        where last_checked_at < :checkedBefore
+                        order by id
+                        for update skip locked
+                        limit :limit
+                        """)
+                .setParameter("checkedBefore", checkedBefore)
+                .setParameter("limit", limit)
+                .getResultList();
+        return rows.stream().map(this::mapTrackedLink).toList();
     }
 
     @Override
@@ -66,9 +104,18 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
-    public List<TrackedLink> findAll() {
+    public List<TrackedLink> findAll(int limit, int offset) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("Page limit must be positive");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("Page offset must be non-negative");
+        }
+
         return entityManager
                 .createQuery("select l from LinkEntity l order by l.id", LinkEntity.class)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
                 .getResultList()
                 .stream()
                 .map(this::toDomain)
@@ -123,5 +170,24 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
                 entity.getCreatedAt(),
                 entity.getLastCheckedAt(),
                 entity.getLastUpdatedAt());
+    }
+
+    private TrackedLink mapTrackedLink(Object[] row) {
+        return new TrackedLink(
+                ((Number) row[0]).longValue(),
+                URI.create((String) row[1]),
+                toInstant(row[2]),
+                toInstant(row[3]),
+                toInstant(row[4]));
+    }
+
+    private Instant toInstant(Object value) {
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof Timestamp timestamp) {
+            return timestamp.toInstant();
+        }
+        throw new IllegalArgumentException("Unsupported temporal value type: " + value.getClass().getName());
     }
 }

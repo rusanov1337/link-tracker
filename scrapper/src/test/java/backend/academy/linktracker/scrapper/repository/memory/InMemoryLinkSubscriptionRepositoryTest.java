@@ -51,6 +51,26 @@ class InMemoryLinkSubscriptionRepositoryTest {
     }
 
     @Test
+    void pagedQueriesReturnRequestedWindow() {
+        repository.add(new LinkSubscription(1L, 100L, List.of("a"), List.of()));
+        repository.add(new LinkSubscription(1L, 101L, List.of("b"), List.of()));
+        repository.add(new LinkSubscription(2L, 100L, List.of("c"), List.of()));
+        repository.add(new LinkSubscription(3L, 100L, List.of("d"), List.of()));
+
+        var byChatPage = repository.findByChatId(1L, 1, 1);
+        var byLinkPage = repository.findByLinkId(100L, 2, 1);
+        var allPage = repository.findAll(2, 1);
+
+        assertEquals(List.of(101L), byChatPage.stream().map(LinkSubscription::linkId).toList());
+        assertEquals(List.of(2L, 3L), byLinkPage.stream().map(LinkSubscription::chatId).toList());
+        assertEquals(
+                List.of(
+                        new LinkSubscription(1L, 101L, List.of("b"), List.of()),
+                        new LinkSubscription(2L, 100L, List.of("c"), List.of())),
+                allPage);
+    }
+
+    @Test
     void findReturnsExactSubscriptionByChatAndLink() {
         repository.add(new LinkSubscription(7L, 700L, List.of("tag"), List.of("filter")));
 

@@ -5,6 +5,7 @@ import backend.academy.linktracker.scrapper.repository.ChatRepository;
 import backend.academy.linktracker.scrapper.repository.orm.entity.ChatEntity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,13 +22,17 @@ public class OrmChatRepository implements ChatRepository {
 
     @Override
     public boolean add(long chatId) {
-        if (entityManager.find(ChatEntity.class, chatId) != null) {
-            return false;
-        }
-
         var chat = Chat.register(chatId, Instant.now());
-        entityManager.persist(new ChatEntity(chat.id(), chat.registeredAt()));
-        return true;
+        return entityManager
+                        .createNativeQuery("""
+                                insert into chats (id, registered_at)
+                                values (:id, :registeredAt)
+                                on conflict (id) do nothing
+                                """)
+                        .setParameter("id", chat.id())
+                        .setParameter("registeredAt", Timestamp.from(chat.registeredAt()))
+                        .executeUpdate()
+                == 1;
     }
 
     @Override

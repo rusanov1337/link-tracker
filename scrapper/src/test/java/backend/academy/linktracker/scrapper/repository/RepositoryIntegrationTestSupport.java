@@ -84,6 +84,35 @@ public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSu
     }
 
     @Test
+    void trackedLinkFindByIdsReturnsOrderedMatches() {
+        var first = trackedLinkRepository.create(
+                URI.create("https://github.com/org/one"), Instant.parse("2026-03-22T10:00:00Z"));
+        var second = trackedLinkRepository.create(
+                URI.create("https://github.com/org/two"), Instant.parse("2026-03-22T10:00:01Z"));
+        trackedLinkRepository.create(
+                URI.create("https://github.com/org/three"), Instant.parse("2026-03-22T10:00:02Z"));
+
+        var found = trackedLinkRepository.findByIds(List.of(second.id(), 999L, first.id()));
+
+        assertEquals(
+                List.of(first.id(), second.id()),
+                found.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
+    void trackedLinkFindAllSupportsPagination() {
+        trackedLinkRepository.create(URI.create("https://github.com/org/one"), Instant.parse("2026-03-22T10:00:00Z"));
+        var second = trackedLinkRepository.create(
+                URI.create("https://github.com/org/two"), Instant.parse("2026-03-22T10:00:01Z"));
+        var third = trackedLinkRepository.create(
+                URI.create("https://github.com/org/three"), Instant.parse("2026-03-22T10:00:02Z"));
+
+        var page = trackedLinkRepository.findAll(2, 1);
+
+        assertEquals(List.of(second.id(), third.id()), page.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
     void trackedLinkPageToCheckReturnsStableBatch() {
         var first = trackedLinkRepository.create(
                 URI.create("https://github.com/org/one"), Instant.parse("2026-03-22T10:00:00Z"));
@@ -104,6 +133,22 @@ public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSu
                 firstPage.stream().map(TrackedLink::id).toList());
         assertEquals(
                 List.of(third.id()), secondPage.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
+    void trackedLinkLockNextPageToCheckReturnsEligibleBatch() {
+        var first = trackedLinkRepository.create(
+                URI.create("https://github.com/org/one"), Instant.parse("2026-03-22T10:00:00Z"));
+        var second = trackedLinkRepository.create(
+                URI.create("https://github.com/org/two"), Instant.parse("2026-03-22T10:00:01Z"));
+        trackedLinkRepository.create(
+                URI.create("https://github.com/org/three"), Instant.parse("2026-03-22T10:01:00Z"));
+
+        var locked = trackedLinkRepository.lockNextPageToCheck(Instant.parse("2026-03-22T10:00:30Z"), 2);
+
+        assertEquals(
+                List.of(first.id(), second.id()),
+                locked.stream().map(TrackedLink::id).toList());
     }
 
     @Test
@@ -132,6 +177,32 @@ public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSu
         assertTrue(linkSubscriptionRepository.remove(1L, trackedLink.id()));
         assertFalse(linkSubscriptionRepository.exists(1L, trackedLink.id()));
         assertFalse(linkSubscriptionRepository.remove(1L, trackedLink.id()));
+    }
+
+    @Test
+    void subscriptionQueriesSupportPagination() {
+        assertTrue(chatRepository.add(1L));
+        assertTrue(chatRepository.add(2L));
+        assertTrue(chatRepository.add(3L));
+        var firstLink = trackedLinkRepository.create(URI.create("https://github.com/org/one"), Instant.now());
+        var secondLink = trackedLinkRepository.create(URI.create("https://github.com/org/two"), Instant.now());
+
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(1L, firstLink.id(), List.of("a"), List.of())));
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(1L, secondLink.id(), List.of("b"), List.of())));
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(2L, firstLink.id(), List.of("c"), List.of())));
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(3L, firstLink.id(), List.of("d"), List.of())));
+
+        var byChatPage = linkSubscriptionRepository.findByChatId(1L, 1, 1);
+        var byLinkPage = linkSubscriptionRepository.findByLinkId(firstLink.id(), 2, 1);
+        var allPage = linkSubscriptionRepository.findAll(2, 1);
+
+        assertEquals(List.of(secondLink.id()), byChatPage.stream().map(LinkSubscription::linkId).toList());
+        assertEquals(List.of(2L, 3L), byLinkPage.stream().map(LinkSubscription::chatId).toList());
+        assertEquals(
+                List.of(
+                        new LinkSubscription(1L, secondLink.id(), List.of("b"), List.of()),
+                        new LinkSubscription(2L, firstLink.id(), List.of("c"), List.of())),
+                allPage);
     }
 
     @Test

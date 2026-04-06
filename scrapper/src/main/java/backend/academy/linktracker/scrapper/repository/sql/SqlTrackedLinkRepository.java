@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @ConditionalOnProperty(prefix = "app.database", name = "access-type", havingValue = "SQL", matchIfMissing = true)
@@ -34,11 +35,11 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     @Override
     public TrackedLink create(URI url, Instant now) {
         var canonicalUrl = SupportedLinkCanonicalizer.canonicalize(url);
-        return jdbcClient
+        var inserted = jdbcClient
                 .sql("""
                     insert into links (url, created_at, last_checked_at, last_updated_at)
                     values (:url, :createdAt, :lastCheckedAt, :lastUpdatedAt)
-                    on conflict (url) do update set url = excluded.url
+                    on conflict (url) do nothing
                     returning id, url, created_at, last_checked_at, last_updated_at
                     """)
                 .param("url", canonicalUrl.toString())
@@ -46,7 +47,8 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                 .param("lastCheckedAt", Timestamp.from(now))
                 .param("lastUpdatedAt", Timestamp.from(now))
                 .query(trackedLinkRowMapper)
-                .single();
+                .optional();
+        return inserted.orElseGet(() -> findByUrl(canonicalUrl).orElseThrow());
     }
 
     @Override
@@ -73,6 +75,42 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public List<TrackedLink> findByIds(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        return jdbcClient
+                .sql("""
+                    select id, url, created_at, last_checked_at, last_updated_at
+                    from links
+                    where id in (:ids)
+                    order by id
+                    """)
+                .param("ids", ids)
+                .query(trackedLinkRowMapper)
+                .list();
+    }
+
+    @Override
+    @Transactional
+    public List<TrackedLink> lockNextPageToCheck(Instant checkedBefore, int limit) {
+        return jdbcClient
+                .sql("""
+                    select id, url, created_at, last_checked_at, last_updated_at
+                    from links
+                    where last_checked_at < :checkedBefore
+                    order by id
+                    for update skip locked
+                    limit :limit
+                    """)
+                .param("checkedBefore", Timestamp.from(checkedBefore))
+                .param("limit", limit)
+                .query(trackedLinkRowMapper)
+                .list();
+    }
+
+    @Override
     public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
         return jdbcClient
                 .sql("""
@@ -91,12 +129,24 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
-    public List<TrackedLink> findAll() {
+    public List<TrackedLink> findAll(int limit, int offset) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("Page limit must be positive");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("Page offset must be non-negative");
+        }
+
         return jdbcClient.sql("""
                     select id, url, created_at, last_checked_at, last_updated_at
                     from links
                     order by id
-                    """).query(trackedLinkRowMapper).list();
+                    limit :limit offset :offset
+                    """)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(trackedLinkRowMapper)
+                .list();
     }
 
     @Override

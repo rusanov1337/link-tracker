@@ -3,15 +3,19 @@ package backend.academy.linktracker.scrapper.service;
 import backend.academy.linktracker.scrapper.client.bot.BotUpdatesClient;
 import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
+import backend.academy.linktracker.scrapper.properties.DatabaseProperties;
 import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class LinkUpdatePollingService {
@@ -24,42 +28,57 @@ public class LinkUpdatePollingService {
     private final List<ExternalLinkClient> externalLinkClients;
     private final BotUpdatesClient botUpdatesClient;
     private final SchedulerProperties schedulerProperties;
+    private final DatabaseProperties databaseProperties;
+    private final TransactionTemplate transactionTemplate;
 
     public LinkUpdatePollingService(
             TrackedLinkRepository trackedLinkRepository,
             LinkSubscriptionRepository linkSubscriptionRepository,
             List<ExternalLinkClient> externalLinkClients,
             BotUpdatesClient botUpdatesClient,
-            SchedulerProperties schedulerProperties) {
+            SchedulerProperties schedulerProperties,
+            DatabaseProperties databaseProperties,
+            PlatformTransactionManager transactionManager) {
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
         this.externalLinkClients = externalLinkClients;
         this.botUpdatesClient = botUpdatesClient;
         this.schedulerProperties = schedulerProperties;
+        this.databaseProperties = databaseProperties;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public void checkUpdates() {
         var checkedAt = Instant.now();
         var checkedLinksCount = 0;
-        long afterId = 0;
         while (true) {
-            var links = trackedLinkRepository.findPageToCheck(checkedAt, afterId, schedulerProperties.getBatchSize());
-            if (links.isEmpty()) {
+            var processedBatchSize = processNextBatch(checkedAt);
+            if (processedBatchSize == 0) {
                 break;
             }
-
-            for (var trackedLink : links) {
-                checkSingleLink(trackedLink, checkedAt);
-            }
-
-            checkedLinksCount += links.size();
-            afterId = links.getLast().id();
+            checkedLinksCount += processedBatchSize;
         }
 
         LOGGER.atInfo()
                 .addKeyValue("operation", "checkUpdates")
                 .addKeyValue("linksChecked", checkedLinksCount)
                 .log("Links check finished");
+    }
+
+    private int processNextBatch(Instant checkedAt) {
+        return transactionTemplate.execute(status -> {
+            // Keep row locks until the whole batch is processed to avoid duplicate notifications
+            // when multiple scrapper instances poll the same links concurrently.
+            var links = trackedLinkRepository.lockNextPageToCheck(checkedAt, schedulerProperties.getBatchSize());
+            if (links.isEmpty()) {
+                return 0;
+            }
+
+            for (var trackedLink : links) {
+                checkSingleLink(trackedLink, checkedAt);
+            }
+            return links.size();
+        });
     }
 
     private void checkSingleLink(TrackedLink trackedLink, Instant checkedAt) {
@@ -98,9 +117,7 @@ public class LinkUpdatePollingService {
             return;
         }
 
-        var chatIds = linkSubscriptionRepository.findByLinkId(trackedLink.id()).stream()
-                .map(subscription -> subscription.chatId())
-                .toList();
+        var chatIds = findSubscriberChatIds(trackedLink.id());
         if (chatIds.isEmpty()) {
             trackedLinkRepository.update(
                     trackedLink.withLastCheckedAt(checkedAt).withLastUpdatedAt(lastUpdated.orElseThrow()));
@@ -136,6 +153,20 @@ public class LinkUpdatePollingService {
                     .setCause(exception)
                     .log("Bot update notification failed");
             return false;
+        }
+    }
+
+    private List<Long> findSubscriberChatIds(long linkId) {
+        var chatIds = new ArrayList<Long>();
+        var offset = 0;
+        while (true) {
+            var subscriptions = linkSubscriptionRepository.findByLinkId(linkId, databaseProperties.getPageSize(), offset);
+            if (subscriptions.isEmpty()) {
+                return List.copyOf(chatIds);
+            }
+
+            subscriptions.stream().map(subscription -> subscription.chatId()).forEach(chatIds::add);
+            offset += subscriptions.size();
         }
     }
 }
