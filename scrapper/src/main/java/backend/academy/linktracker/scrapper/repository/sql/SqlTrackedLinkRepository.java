@@ -80,16 +80,12 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
             return List.of();
         }
 
-        return jdbcClient
-                .sql("""
+        return jdbcClient.sql("""
                     select id, url, created_at, last_checked_at, last_updated_at
                     from links
                     where id in (:ids)
                     order by id
-                    """)
-                .param("ids", ids)
-                .query(trackedLinkRowMapper)
-                .list();
+                    """).param("ids", ids).query(trackedLinkRowMapper).list();
     }
 
     @Override
@@ -137,7 +133,8 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
             throw new IllegalArgumentException("Page offset must be non-negative");
         }
 
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql("""
                     select id, url, created_at, last_checked_at, last_updated_at
                     from links
                     order by id

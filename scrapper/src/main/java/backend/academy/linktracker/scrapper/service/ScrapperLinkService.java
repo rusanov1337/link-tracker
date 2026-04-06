@@ -89,17 +89,21 @@ public class ScrapperLinkService {
         var links = new ArrayList<LinkResponse>();
         var offset = 0;
         while (true) {
-            var subscriptions = linkSubscriptionRepository.findByChatId(chatId, databaseProperties.getPageSize(), offset);
+            var subscriptions =
+                    linkSubscriptionRepository.findByChatId(chatId, databaseProperties.getPageSize(), offset);
             if (subscriptions.isEmpty()) {
                 break;
             }
 
-            var trackedLinksById = trackedLinkRepository
-                    .findByIds(subscriptions.stream().map(LinkSubscription::linkId).distinct().toList())
-                    .stream()
-                    .collect(java.util.stream.Collectors.toMap(
-                            trackedLink -> trackedLink.id(),
-                            Function.identity()));
+            var trackedLinksById =
+                    trackedLinkRepository
+                            .findByIds(subscriptions.stream()
+                                    .map(LinkSubscription::linkId)
+                                    .distinct()
+                                    .toList())
+                            .stream()
+                            .collect(java.util.stream.Collectors.toMap(
+                                    trackedLink -> trackedLink.id(), Function.identity()));
 
             for (var subscription : subscriptions) {
                 var trackedLink = trackedLinksById.get(subscription.linkId());
@@ -108,10 +112,7 @@ public class ScrapperLinkService {
                 }
 
                 links.add(new LinkResponse(
-                        trackedLink.id(),
-                        trackedLink.url().toString(),
-                        subscription.tags(),
-                        subscription.filters()));
+                        trackedLink.id(), trackedLink.url().toString(), subscription.tags(), subscription.filters()));
             }
             offset += subscriptions.size();
         }
@@ -203,7 +204,8 @@ public class ScrapperLinkService {
         var linkIds = new LinkedHashSet<Long>();
         var offset = 0;
         while (true) {
-            var subscriptions = linkSubscriptionRepository.findByChatId(chatId, databaseProperties.getPageSize(), offset);
+            var subscriptions =
+                    linkSubscriptionRepository.findByChatId(chatId, databaseProperties.getPageSize(), offset);
             if (subscriptions.isEmpty()) {
                 return List.copyOf(linkIds);
             }

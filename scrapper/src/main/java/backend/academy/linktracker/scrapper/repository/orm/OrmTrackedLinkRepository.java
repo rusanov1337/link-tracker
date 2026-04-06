@@ -69,8 +69,7 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     public List<TrackedLink> lockNextPageToCheck(Instant checkedBefore, int limit) {
         @SuppressWarnings("unchecked")
         var rows = (List<Object[]>) entityManager
-                .createNativeQuery(
-                        """
+                .createNativeQuery("""
                         select id, url, created_at, last_checked_at, last_updated_at
                         from links
                         where last_checked_at < :checkedBefore
@@ -188,6 +187,7 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
         if (value instanceof Timestamp timestamp) {
             return timestamp.toInstant();
         }
-        throw new IllegalArgumentException("Unsupported temporal value type: " + value.getClass().getName());
+        throw new IllegalArgumentException(
+                "Unsupported temporal value type: " + value.getClass().getName());
     }
 }

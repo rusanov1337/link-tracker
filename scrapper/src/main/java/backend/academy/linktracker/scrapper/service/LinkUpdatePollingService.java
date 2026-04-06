@@ -160,7 +160,8 @@ public class LinkUpdatePollingService {
         var chatIds = new ArrayList<Long>();
         var offset = 0;
         while (true) {
-            var subscriptions = linkSubscriptionRepository.findByLinkId(linkId, databaseProperties.getPageSize(), offset);
+            var subscriptions =
+                    linkSubscriptionRepository.findByLinkId(linkId, databaseProperties.getPageSize(), offset);
             if (subscriptions.isEmpty()) {
                 return List.copyOf(chatIds);
             }

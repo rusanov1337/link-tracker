@@ -61,8 +61,11 @@ class InMemoryLinkSubscriptionRepositoryTest {
         var byLinkPage = repository.findByLinkId(100L, 2, 1);
         var allPage = repository.findAll(2, 1);
 
-        assertEquals(List.of(101L), byChatPage.stream().map(LinkSubscription::linkId).toList());
-        assertEquals(List.of(2L, 3L), byLinkPage.stream().map(LinkSubscription::chatId).toList());
+        assertEquals(
+                List.of(101L), byChatPage.stream().map(LinkSubscription::linkId).toList());
+        assertEquals(
+                List.of(2L, 3L),
+                byLinkPage.stream().map(LinkSubscription::chatId).toList());
         assertEquals(
                 List.of(
                         new LinkSubscription(1L, 101L, List.of("b"), List.of()),

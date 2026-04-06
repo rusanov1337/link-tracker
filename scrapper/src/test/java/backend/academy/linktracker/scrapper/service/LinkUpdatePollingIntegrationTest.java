@@ -11,10 +11,10 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 
 import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
 import backend.academy.linktracker.scrapper.api.dto.AddLinkRequest;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -100,10 +100,7 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
     @Test
     void checkUpdatesDoesNotDuplicateNotificationWhenCalledConcurrently() throws Exception {
         stubFor(get(urlEqualTo("/repos/octocat/hello-world"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withFixedDelay(200)
-                        .withBody("""
+                .willReturn(aResponse().withStatus(200).withFixedDelay(200).withBody("""
                                 {
                                   "updated_at": "2099-01-01T00:00:00Z"
                                 }

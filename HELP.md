@@ -230,7 +230,7 @@ Testcontainers настроен на использование следующи
 
 * [`grafana/otel-lgtm:latest`](https://hub.docker.com/r/grafana/otel-lgtm)
 * [`apache/kafka-native:4.1.1`](https://hub.docker.com/r/apache/kafka-native)
-* [`postgres:18-alpine`](https://hub.docker.com/_/postgres)
+* [`postgres:17-alpine`](https://hub.docker.com/_/postgres)
 * [`redis:8.2-alpine`](https://hub.docker.com/_/redis)
 
 Проверьте теги используемых образов и убедитесь, что они совпадают с теми, которые используются в production.
