@@ -12,6 +12,9 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 
 import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
 import backend.academy.linktracker.scrapper.api.dto.AddLinkRequest;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -116,5 +119,50 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
                 1,
                 postRequestedFor(urlEqualTo("/reports"))
                         .withRequestBody(containing("https://github.com/octocat/hello-world")));
+    }
+
+    @Test
+    void checkUpdatesDoesNotDuplicateNotificationWhenCalledConcurrently() throws Exception {
+        stubFor(get(urlEqualTo("/repos/octocat/hello-world"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withFixedDelay(200)
+                        .withBody("""
+                                {
+                                  "updated_at": "2099-01-01T00:00:00Z"
+                                }
+                                """)));
+        stubFor(post(urlEqualTo("/updates")).willReturn(aResponse().withStatus(200)));
+
+        scrapperLinkService.registerChat(1L);
+        scrapperLinkService.addLink(
+                1L, new AddLinkRequest("https://github.com/octocat/hello-world", List.of(), List.of()));
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var startLatch = new CountDownLatch(1);
+            var first = executor.submit(() -> {
+                awaitStart(startLatch);
+                linkUpdatePollingService.checkUpdates();
+            });
+            var second = executor.submit(() -> {
+                awaitStart(startLatch);
+                linkUpdatePollingService.checkUpdates();
+            });
+
+            startLatch.countDown();
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+        }
+
+        verify(1, postRequestedFor(urlEqualTo("/updates")));
+    }
+
+    private void awaitStart(CountDownLatch startLatch) {
+        try {
+            startLatch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while waiting for concurrent start", exception);
+        }
     }
 }

@@ -11,13 +11,16 @@ import backend.academy.linktracker.scrapper.exception.ChatNotFoundException;
 import backend.academy.linktracker.scrapper.exception.LinkAlreadyTrackedException;
 import backend.academy.linktracker.scrapper.exception.LinkNotFoundException;
 import backend.academy.linktracker.scrapper.exception.UnsupportedLinkException;
+import backend.academy.linktracker.scrapper.properties.DatabaseProperties;
 import backend.academy.linktracker.scrapper.repository.ChatRepository;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,16 +35,19 @@ public class ScrapperLinkService {
     private final TrackedLinkRepository trackedLinkRepository;
     private final LinkSubscriptionRepository linkSubscriptionRepository;
     private final List<ExternalLinkClient> externalLinkClients;
+    private final DatabaseProperties databaseProperties;
 
     public ScrapperLinkService(
             ChatRepository chatRepository,
             TrackedLinkRepository trackedLinkRepository,
             LinkSubscriptionRepository linkSubscriptionRepository,
-            List<ExternalLinkClient> externalLinkClients) {
+            List<ExternalLinkClient> externalLinkClients,
+            DatabaseProperties databaseProperties) {
         this.chatRepository = chatRepository;
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
         this.externalLinkClients = externalLinkClients;
+        this.databaseProperties = databaseProperties;
     }
 
     @Transactional
@@ -59,36 +65,55 @@ public class ScrapperLinkService {
 
     @Transactional
     public void deleteChat(long chatId) {
-        var subscriptions = linkSubscriptionRepository.findByChatId(chatId);
+        var trackedLinkIdsToCheck = loadTrackedLinkIdsByChatId(chatId);
         if (!chatRepository.remove(chatId)) {
             throw new ChatNotFoundException(chatId);
         }
 
-        for (var subscription : subscriptions) {
-            removeLinkIfOrphan(subscription.linkId());
+        for (var linkId : trackedLinkIdsToCheck) {
+            removeLinkIfOrphan(linkId);
         }
 
         LOGGER.atInfo()
                 .addKeyValue("operation", "deleteChat")
                 .addKeyValue("chatId", chatId)
-                .addKeyValue("removedSubscriptions", subscriptions.size())
+                .addKeyValue("orphanLinksToCheck", trackedLinkIdsToCheck.size())
                 .addKeyValue("success", true)
                 .log("Chat deleted");
     }
 
+    @Transactional(readOnly = true)
     public ListLinksResponse getLinks(long chatId) {
         ensureChatExists(chatId);
 
-        var subscriptions = linkSubscriptionRepository.findByChatId(chatId);
-        var links = new ArrayList<LinkResponse>(subscriptions.size());
-        for (var subscription : subscriptions) {
-            trackedLinkRepository
-                    .findById(subscription.linkId())
-                    .ifPresent(trackedLink -> links.add(new LinkResponse(
-                            trackedLink.id(),
-                            trackedLink.url().toString(),
-                            subscription.tags(),
-                            subscription.filters())));
+        var links = new ArrayList<LinkResponse>();
+        var offset = 0;
+        while (true) {
+            var subscriptions = linkSubscriptionRepository.findByChatId(chatId, databaseProperties.getPageSize(), offset);
+            if (subscriptions.isEmpty()) {
+                break;
+            }
+
+            var trackedLinksById = trackedLinkRepository
+                    .findByIds(subscriptions.stream().map(LinkSubscription::linkId).distinct().toList())
+                    .stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            trackedLink -> trackedLink.id(),
+                            Function.identity()));
+
+            for (var subscription : subscriptions) {
+                var trackedLink = trackedLinksById.get(subscription.linkId());
+                if (trackedLink == null) {
+                    continue;
+                }
+
+                links.add(new LinkResponse(
+                        trackedLink.id(),
+                        trackedLink.url().toString(),
+                        subscription.tags(),
+                        subscription.filters()));
+            }
+            offset += subscriptions.size();
         }
 
         LOGGER.atInfo()
@@ -169,8 +194,22 @@ public class ScrapperLinkService {
     }
 
     private void removeLinkIfOrphan(long linkId) {
-        if (linkSubscriptionRepository.findByLinkId(linkId).isEmpty()) {
+        if (linkSubscriptionRepository.findByLinkId(linkId, 1, 0).isEmpty()) {
             trackedLinkRepository.delete(linkId);
+        }
+    }
+
+    private List<Long> loadTrackedLinkIdsByChatId(long chatId) {
+        var linkIds = new LinkedHashSet<Long>();
+        var offset = 0;
+        while (true) {
+            var subscriptions = linkSubscriptionRepository.findByChatId(chatId, databaseProperties.getPageSize(), offset);
+            if (subscriptions.isEmpty()) {
+                return List.copyOf(linkIds);
+            }
+
+            subscriptions.stream().map(LinkSubscription::linkId).forEach(linkIds::add);
+            offset += subscriptions.size();
         }
     }
 }

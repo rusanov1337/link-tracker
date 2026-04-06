@@ -9,6 +9,7 @@ import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.DetectedUpdate;
 import backend.academy.linktracker.scrapper.domain.LinkCheckResult;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
+import backend.academy.linktracker.scrapper.properties.DatabaseProperties;
 import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryLinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryTrackedLinkRepository;
@@ -23,6 +24,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 class LinkUpdatePollingServiceTest {
 
@@ -297,13 +302,17 @@ class LinkUpdatePollingServiceTest {
         var schedulerProperties = new SchedulerProperties();
         schedulerProperties.setBatchSize(batchSize);
         schedulerProperties.setParallelism(parallelism);
+        var databaseProperties = new DatabaseProperties();
+        databaseProperties.setPageSize(1);
         return new LinkUpdatePollingService(
                 trackedLinkRepository,
                 linkSubscriptionRepository,
                 externalClients,
                 botClient,
                 linkUpdateDescriptionFormatter,
-                schedulerProperties);
+                schedulerProperties,
+                databaseProperties,
+                new NoOpTransactionManager());
     }
 
     private record Notification(long id, URI url, String description, List<Long> tgChatIds) {}
@@ -404,5 +413,18 @@ class LinkUpdatePollingServiceTest {
         private int maxActiveCalls() {
             return maxActiveCalls.get();
         }
+    }
+
+    private static final class NoOpTransactionManager implements PlatformTransactionManager {
+        @Override
+        public TransactionStatus getTransaction(TransactionDefinition definition) {
+            return new SimpleTransactionStatus();
+        }
+
+        @Override
+        public void commit(TransactionStatus status) {}
+
+        @Override
+        public void rollback(TransactionStatus status) {}
     }
 }

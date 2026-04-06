@@ -33,26 +33,26 @@ public class InMemoryLinkSubscriptionRepository implements LinkSubscriptionRepos
     }
 
     @Override
-    public List<LinkSubscription> findByChatId(long chatId) {
-        return subscriptionsByKey.values().stream()
+    public List<LinkSubscription> findByChatId(long chatId, int limit, int offset) {
+        return paginate(subscriptionsByKey.values().stream()
                 .filter(subscription -> subscription.chatId() == chatId)
                 .sorted(Comparator.comparingLong(LinkSubscription::linkId))
-                .toList();
+                .toList(), limit, offset);
     }
 
     @Override
-    public List<LinkSubscription> findByLinkId(long linkId) {
-        return subscriptionsByKey.values().stream()
+    public List<LinkSubscription> findByLinkId(long linkId, int limit, int offset) {
+        return paginate(subscriptionsByKey.values().stream()
                 .filter(subscription -> subscription.linkId() == linkId)
                 .sorted(Comparator.comparingLong(LinkSubscription::chatId))
-                .toList();
+                .toList(), limit, offset);
     }
 
     @Override
-    public List<LinkSubscription> findAll() {
-        return subscriptionsByKey.values().stream()
+    public List<LinkSubscription> findAll(int limit, int offset) {
+        return paginate(subscriptionsByKey.values().stream()
                 .sorted(Comparator.comparingLong(LinkSubscription::chatId).thenComparingLong(LinkSubscription::linkId))
-                .toList();
+                .toList(), limit, offset);
     }
 
     @Override
@@ -62,6 +62,21 @@ public class InMemoryLinkSubscriptionRepository implements LinkSubscriptionRepos
 
     private SubscriptionKey key(long chatId, long linkId) {
         return new SubscriptionKey(chatId, linkId);
+    }
+
+    private List<LinkSubscription> paginate(List<LinkSubscription> subscriptions, int limit, int offset) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("Page limit must be positive");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("Page offset must be non-negative");
+        }
+        if (offset >= subscriptions.size()) {
+            return List.of();
+        }
+
+        var toIndex = Math.min(subscriptions.size(), offset + limit);
+        return List.copyOf(subscriptions.subList(offset, toIndex));
     }
 
     private record SubscriptionKey(long chatId, long linkId) {}

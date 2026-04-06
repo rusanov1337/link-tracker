@@ -19,6 +19,7 @@ spring:
 app:
   database:
     access-type: ${SCRAPPER_DB_ACCESS_TYPE:SQL}
+    page-size: ${SCRAPPER_DB_PAGE_SIZE:500}
   grpc:
     server:
       enabled: ${SCRAPPER_GRPC_SERVER_ENABLED:false}

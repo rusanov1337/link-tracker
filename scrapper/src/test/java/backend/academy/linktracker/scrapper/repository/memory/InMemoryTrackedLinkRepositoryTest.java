@@ -97,6 +97,30 @@ class InMemoryTrackedLinkRepositoryTest {
     }
 
     @Test
+    void findByIdsReturnsOrderedMatches() {
+        var first = repository.create(URI.create("https://github.com/org/one"), Instant.parse("2026-03-06T10:00:00Z"));
+        var second = repository.create(URI.create("https://github.com/org/two"), Instant.parse("2026-03-06T10:00:01Z"));
+        repository.create(URI.create("https://github.com/org/three"), Instant.parse("2026-03-06T10:00:02Z"));
+
+        var found = repository.findByIds(List.of(second.id(), 999L, first.id()));
+
+        assertEquals(
+                List.of(first.id(), second.id()),
+                found.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
+    void findAllReturnsRequestedPage() {
+        repository.create(URI.create("https://github.com/org/one"), Instant.parse("2026-03-06T10:00:00Z"));
+        var second = repository.create(URI.create("https://github.com/org/two"), Instant.parse("2026-03-06T10:00:01Z"));
+        var third = repository.create(URI.create("https://github.com/org/three"), Instant.parse("2026-03-06T10:00:02Z"));
+
+        var page = repository.findAll(2, 1);
+
+        assertEquals(List.of(second.id(), third.id()), page.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
     void findPageToCheckReturnsLimitedBatch() {
         var first = repository.create(URI.create("https://github.com/org/one"), Instant.parse("2026-03-06T10:00:00Z"));
         var second = repository.create(URI.create("https://github.com/org/two"), Instant.parse("2026-03-06T10:00:01Z"));
@@ -116,6 +140,19 @@ class InMemoryTrackedLinkRepositoryTest {
                 firstPage.stream().map(TrackedLink::id).toList());
         assertEquals(
                 List.of(third.id()), secondPage.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
+    void lockNextPageToCheckReturnsLimitedBatch() {
+        var first = repository.create(URI.create("https://github.com/org/one"), Instant.parse("2026-03-06T10:00:00Z"));
+        var second = repository.create(URI.create("https://github.com/org/two"), Instant.parse("2026-03-06T10:00:01Z"));
+        repository.create(URI.create("https://github.com/org/three"), Instant.parse("2026-03-06T10:01:00Z"));
+
+        var locked = repository.lockNextPageToCheck(Instant.parse("2026-03-06T10:00:30Z"), 2);
+
+        assertEquals(
+                List.of(first.id(), second.id()),
+                locked.stream().map(TrackedLink::id).toList());
     }
 
     @Test

@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @ConditionalOnProperty(prefix = "app.database", name = "access-type", havingValue = "SQL", matchIfMissing = true)
@@ -34,11 +35,11 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     @Override
     public TrackedLink create(URI url, Instant now) {
         var canonicalUrl = SupportedLinkCanonicalizer.canonicalize(url);
-        return jdbcClient
+        var inserted = jdbcClient
                 .sql("""
                     insert into links (url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor)
                     values (:url, :createdAt, :lastCheckedAt, :lastUpdatedAt, :lastEventAt, :lastEventCursor)
-                    on conflict (url) do update set url = excluded.url
+                    on conflict (url) do nothing
                     returning id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     """)
                 .param("url", canonicalUrl.toString())
@@ -48,16 +49,21 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                 .param("lastEventAt", null)
                 .param("lastEventCursor", null)
                 .query(trackedLinkRowMapper)
-                .single();
+                .optional();
+        return inserted.orElseGet(() -> findByUrl(canonicalUrl).orElseThrow());
     }
 
     @Override
     public Optional<TrackedLink> findById(long id) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql("""
                     select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     where id = :id
-                    """).param("id", id).query(trackedLinkRowMapper).optional();
+                    """)
+                .param("id", id)
+                .query(trackedLinkRowMapper)
+                .optional();
     }
 
     @Override
@@ -72,6 +78,42 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                 .param("url", canonicalUrl.toString())
                 .query(trackedLinkRowMapper)
                 .optional();
+    }
+
+    @Override
+    public List<TrackedLink> findByIds(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        return jdbcClient
+                .sql("""
+                    select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
+                    from links
+                    where id in (:ids)
+                    order by id
+                    """)
+                .param("ids", ids)
+                .query(trackedLinkRowMapper)
+                .list();
+    }
+
+    @Override
+    @Transactional
+    public List<TrackedLink> lockNextPageToCheck(Instant checkedBefore, int limit) {
+        return jdbcClient
+                .sql("""
+                    select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
+                    from links
+                    where last_checked_at < :checkedBefore
+                    order by id
+                    for update skip locked
+                    limit :limit
+                    """)
+                .param("checkedBefore", Timestamp.from(checkedBefore))
+                .param("limit", limit)
+                .query(trackedLinkRowMapper)
+                .list();
     }
 
     @Override
@@ -93,12 +135,25 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
-    public List<TrackedLink> findAll() {
-        return jdbcClient.sql("""
+    public List<TrackedLink> findAll(int limit, int offset) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("Page limit must be positive");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("Page offset must be non-negative");
+        }
+
+        return jdbcClient
+                .sql("""
                     select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     order by id
-                    """).query(trackedLinkRowMapper).list();
+                    limit :limit offset :offset
+                    """)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(trackedLinkRowMapper)
+                .list();
     }
 
     @Override
@@ -115,16 +170,11 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                     where id = :id
                     """)
                 .param("id", trackedLink.id())
-                .param(
-                        "url",
-                        SupportedLinkCanonicalizer.canonicalize(trackedLink.url())
-                                .toString())
+                .param("url", SupportedLinkCanonicalizer.canonicalize(trackedLink.url()).toString())
                 .param("createdAt", Timestamp.from(trackedLink.createdAt()))
                 .param("lastCheckedAt", Timestamp.from(trackedLink.lastCheckedAt()))
                 .param("lastUpdatedAt", Timestamp.from(trackedLink.lastUpdatedAt()))
-                .param(
-                        "lastEventAt",
-                        trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()))
+                .param("lastEventAt", trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()))
                 .param("lastEventCursor", trackedLink.lastEventCursor())
                 .update();
         if (updatedRows == 0) {
@@ -134,11 +184,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public boolean delete(long id) {
-        return jdbcClient
-                        .sql("delete from links where id = :id")
-                        .param("id", id)
-                        .update()
-                == 1;
+        return jdbcClient.sql("delete from links where id = :id").param("id", id).update() == 1;
     }
 
     @Override

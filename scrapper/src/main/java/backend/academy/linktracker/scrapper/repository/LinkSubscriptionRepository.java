@@ -6,6 +6,8 @@ import java.util.Optional;
 
 public interface LinkSubscriptionRepository {
 
+    int UNBOUNDED_PAGE_SIZE = Integer.MAX_VALUE;
+
     boolean add(LinkSubscription subscription);
 
     boolean remove(long chatId, long linkId);
@@ -14,11 +16,23 @@ public interface LinkSubscriptionRepository {
 
     Optional<LinkSubscription> find(long chatId, long linkId);
 
-    List<LinkSubscription> findByChatId(long chatId);
+    default List<LinkSubscription> findByChatId(long chatId) {
+        return findByChatId(chatId, UNBOUNDED_PAGE_SIZE, 0);
+    }
 
-    List<LinkSubscription> findByLinkId(long linkId);
+    List<LinkSubscription> findByChatId(long chatId, int limit, int offset);
 
-    List<LinkSubscription> findAll();
+    default List<LinkSubscription> findByLinkId(long linkId) {
+        return findByLinkId(linkId, UNBOUNDED_PAGE_SIZE, 0);
+    }
+
+    List<LinkSubscription> findByLinkId(long linkId, int limit, int offset);
+
+    default List<LinkSubscription> findAll() {
+        return findAll(UNBOUNDED_PAGE_SIZE, 0);
+    }
+
+    List<LinkSubscription> findAll(int limit, int offset);
 
     long count();
 }

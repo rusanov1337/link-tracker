@@ -6,6 +6,7 @@ import backend.academy.linktracker.scrapper.repository.support.SupportedLinkCano
 import java.net.URI;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,6 +51,28 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public List<TrackedLink> findByIds(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        var requestedIds = new HashSet<>(ids);
+        return linksById.values().stream()
+                .filter(link -> requestedIds.contains(link.id()))
+                .sorted(Comparator.comparingLong(TrackedLink::id))
+                .toList();
+    }
+
+    @Override
+    public List<TrackedLink> lockNextPageToCheck(Instant checkedBefore, int limit) {
+        return linksById.values().stream()
+                .filter(link -> link.lastCheckedAt().isBefore(checkedBefore))
+                .sorted(Comparator.comparingLong(TrackedLink::id))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
         return linksById.values().stream()
                 .filter(link -> !link.lastCheckedAt().isAfter(checkedBefore))
@@ -60,10 +83,23 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
-    public List<TrackedLink> findAll() {
-        return linksById.values().stream()
+    public List<TrackedLink> findAll(int limit, int offset) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("Page limit must be positive");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("Page offset must be non-negative");
+        }
+
+        var sortedLinks = linksById.values().stream()
                 .sorted(Comparator.comparingLong(TrackedLink::id))
                 .toList();
+        if (offset >= sortedLinks.size()) {
+            return List.of();
+        }
+
+        var toIndex = Math.min(sortedLinks.size(), offset + limit);
+        return List.copyOf(sortedLinks.subList(offset, toIndex));
     }
 
     @Override

@@ -8,7 +8,6 @@ import backend.academy.linktracker.scrapper.repository.SubscriptionTagRepository
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(
@@ -20,7 +19,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         })
 @Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class OrmRepositoryIntegrationTest extends RepositoryIntegrationTestSupport {
 
     @Override

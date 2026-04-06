@@ -6,7 +6,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.RowMapper;
@@ -20,12 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository {
 
     private final JdbcClient jdbcClient;
-    private final RowMapper<LinkSubscription> subscriptionRowMapper = new RowMapper<>() {
+    private final RowMapper<SubscriptionKey> subscriptionKeyRowMapper = new RowMapper<>() {
         @Override
-        public LinkSubscription mapRow(ResultSet resultSet, int rowNum) throws SQLException {
-            return mapSubscription(resultSet.getLong("chat_id"), resultSet.getLong("link_id"));
+        public SubscriptionKey mapRow(ResultSet resultSet, int rowNum) throws SQLException {
+            return new SubscriptionKey(resultSet.getLong("chat_id"), resultSet.getLong("link_id"));
         }
     };
+    private final RowMapper<SubscriptionValue> subscriptionTagRowMapper = valueRowMapper("tag");
+    private final RowMapper<SubscriptionValue> subscriptionFilterRowMapper = valueRowMapper("filter_value");
 
     public SqlLinkSubscriptionRepository(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
@@ -82,7 +87,7 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
 
     @Override
     public Optional<LinkSubscription> find(long chatId, long linkId) {
-        return jdbcClient
+        var subscriptionKey = jdbcClient
                 .sql("""
                     select chat_id, link_id
                     from subscriptions
@@ -90,45 +95,31 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
                     """)
                 .param("chatId", chatId)
                 .param("linkId", linkId)
-                .query(subscriptionRowMapper)
+                .query(subscriptionKeyRowMapper)
                 .optional();
+        if (subscriptionKey.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new LinkSubscription(chatId, linkId, findTags(chatId, linkId), findFilters(chatId, linkId)));
     }
 
     @Override
-    public List<LinkSubscription> findByChatId(long chatId) {
-        return jdbcClient
-                .sql("""
-                    select chat_id, link_id
-                    from subscriptions
-                    where chat_id = :chatId
-                    order by link_id
-                    """)
-                .param("chatId", chatId)
-                .query(subscriptionRowMapper)
-                .list();
+    public List<LinkSubscription> findByChatId(long chatId, int limit, int offset) {
+        var keys = findKeysByChatId(chatId, limit, offset);
+        return hydrateSubscriptions(keys, findTagValues(keys), findFilterValues(keys));
     }
 
     @Override
-    public List<LinkSubscription> findByLinkId(long linkId) {
-        return jdbcClient
-                .sql("""
-                    select chat_id, link_id
-                    from subscriptions
-                    where link_id = :linkId
-                    order by chat_id
-                    """)
-                .param("linkId", linkId)
-                .query(subscriptionRowMapper)
-                .list();
+    public List<LinkSubscription> findByLinkId(long linkId, int limit, int offset) {
+        var keys = findKeysByLinkId(linkId, limit, offset);
+        return hydrateSubscriptions(keys, findTagValues(keys), findFilterValues(keys));
     }
 
     @Override
-    public List<LinkSubscription> findAll() {
-        return jdbcClient.sql("""
-                    select chat_id, link_id
-                    from subscriptions
-                    order by chat_id, link_id
-                    """).query(subscriptionRowMapper).list();
+    public List<LinkSubscription> findAll(int limit, int offset) {
+        var keys = findAllKeys(limit, offset);
+        return hydrateSubscriptions(keys, findTagValues(keys), findFilterValues(keys));
     }
 
     @Override
@@ -139,8 +130,23 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
                 .single();
     }
 
-    private LinkSubscription mapSubscription(long chatId, long linkId) {
-        return new LinkSubscription(chatId, linkId, findTags(chatId, linkId), findFilters(chatId, linkId));
+    private List<LinkSubscription> hydrateSubscriptions(
+            List<SubscriptionKey> keys, List<SubscriptionValue> tagValues, List<SubscriptionValue> filterValues) {
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+
+        var tagsBySubscription = groupValues(tagValues);
+        var filtersBySubscription = groupValues(filterValues);
+        var subscriptions = new ArrayList<LinkSubscription>(keys.size());
+        for (var key : keys) {
+            subscriptions.add(new LinkSubscription(
+                    key.chatId(),
+                    key.linkId(),
+                    tagsBySubscription.getOrDefault(key, List.of()),
+                    filtersBySubscription.getOrDefault(key, List.of())));
+        }
+        return List.copyOf(subscriptions);
     }
 
     private List<String> findTags(long chatId, long linkId) {
@@ -171,33 +177,169 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
                 .list();
     }
 
-    private void insertTags(LinkSubscription subscription) {
-        for (var tag : subscription.tags()) {
-            jdbcClient
-                    .sql("""
-                        insert into subscription_tags (chat_id, link_id, tag)
-                        values (:chatId, :linkId, :tag)
-                        on conflict (chat_id, link_id, tag) do nothing
-                        """)
-                    .param("chatId", subscription.chatId())
-                    .param("linkId", subscription.linkId())
-                    .param("tag", tag)
-                    .update();
+    private List<SubscriptionKey> findKeysByChatId(long chatId, int limit, int offset) {
+        validatePage(limit, offset);
+        return jdbcClient
+                .sql("""
+                    select chat_id, link_id
+                    from subscriptions
+                    where chat_id = :chatId
+                    order by link_id
+                    limit :limit offset :offset
+                    """)
+                .param("chatId", chatId)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(subscriptionKeyRowMapper)
+                .list();
+    }
+
+    private List<SubscriptionKey> findKeysByLinkId(long linkId, int limit, int offset) {
+        validatePage(limit, offset);
+        return jdbcClient
+                .sql("""
+                    select chat_id, link_id
+                    from subscriptions
+                    where link_id = :linkId
+                    order by chat_id
+                    limit :limit offset :offset
+                    """)
+                .param("linkId", linkId)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(subscriptionKeyRowMapper)
+                .list();
+    }
+
+    private List<SubscriptionKey> findAllKeys(int limit, int offset) {
+        validatePage(limit, offset);
+        return jdbcClient
+                .sql("""
+                    select chat_id, link_id
+                    from subscriptions
+                    order by chat_id, link_id
+                    limit :limit offset :offset
+                    """)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(subscriptionKeyRowMapper)
+                .list();
+    }
+
+    private List<SubscriptionValue> findTagValues(List<SubscriptionKey> keys) {
+        return findValues(keys, "subscription_tags", "tag", "tag", subscriptionTagRowMapper);
+    }
+
+    private List<SubscriptionValue> findFilterValues(List<SubscriptionKey> keys) {
+        return findValues(keys, "subscription_filters", "filter_value", "filter_value", subscriptionFilterRowMapper);
+    }
+
+    private List<SubscriptionValue> findValues(
+            List<SubscriptionKey> keys,
+            String tableName,
+            String valueColumn,
+            String orderColumn,
+            RowMapper<SubscriptionValue> rowMapper) {
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+
+        var sql = new StringBuilder()
+                .append("select chat_id, link_id, ")
+                .append(valueColumn)
+                .append(" from ")
+                .append(tableName)
+                .append(" where ");
+        for (var index = 0; index < keys.size(); index++) {
+            if (index > 0) {
+                sql.append(" or ");
+            }
+            sql.append("(chat_id = :chatId")
+                    .append(index)
+                    .append(" and link_id = :linkId")
+                    .append(index)
+                    .append(")");
+        }
+        sql.append(" order by chat_id, link_id, ").append(orderColumn);
+
+        var statement = jdbcClient.sql(sql.toString());
+        for (var index = 0; index < keys.size(); index++) {
+            var key = keys.get(index);
+            statement = statement.param("chatId" + index, key.chatId()).param("linkId" + index, key.linkId());
+        }
+        return statement.query(rowMapper).list();
+    }
+
+    private void validatePage(int limit, int offset) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("Page limit must be positive");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("Page offset must be non-negative");
         }
     }
 
-    private void insertFilters(LinkSubscription subscription) {
-        for (var filter : subscription.filters()) {
-            jdbcClient
-                    .sql("""
-                        insert into subscription_filters (chat_id, link_id, filter_value)
-                        values (:chatId, :linkId, :filterValue)
-                        on conflict (chat_id, link_id, filter_value) do nothing
-                        """)
-                    .param("chatId", subscription.chatId())
-                    .param("linkId", subscription.linkId())
-                    .param("filterValue", filter)
-                    .update();
+    private Map<SubscriptionKey, List<String>> groupValues(List<SubscriptionValue> values) {
+        var valuesBySubscription = new HashMap<SubscriptionKey, List<String>>();
+        for (var value : values) {
+            valuesBySubscription
+                    .computeIfAbsent(value.key(), ignored -> new ArrayList<>())
+                    .add(value.value());
         }
+        return Map.copyOf(valuesBySubscription);
     }
+
+    private RowMapper<SubscriptionValue> valueRowMapper(String columnName) {
+        return (resultSet, rowNum) -> new SubscriptionValue(
+                new SubscriptionKey(resultSet.getLong("chat_id"), resultSet.getLong("link_id")),
+                resultSet.getString(columnName));
+    }
+
+    private void insertTags(LinkSubscription subscription) {
+        insertValues(
+                "subscription_tags",
+                "tag",
+                subscription.chatId(),
+                subscription.linkId(),
+                subscription.tags());
+    }
+
+    private void insertFilters(LinkSubscription subscription) {
+        insertValues(
+                "subscription_filters",
+                "filter_value",
+                subscription.chatId(),
+                subscription.linkId(),
+                subscription.filters());
+    }
+
+    private void insertValues(String tableName, String valueColumn, long chatId, long linkId, List<String> values) {
+        if (values.isEmpty()) {
+            return;
+        }
+
+        var sql = new StringBuilder()
+                .append("insert into ")
+                .append(tableName)
+                .append(" (chat_id, link_id, ")
+                .append(valueColumn)
+                .append(") values ");
+        for (var index = 0; index < values.size(); index++) {
+            if (index > 0) {
+                sql.append(", ");
+            }
+            sql.append("(:chatId, :linkId, :value").append(index).append(")");
+        }
+        sql.append(" on conflict (chat_id, link_id, ").append(valueColumn).append(") do nothing");
+
+        var statement = jdbcClient.sql(sql.toString()).param("chatId", chatId).param("linkId", linkId);
+        for (var index = 0; index < values.size(); index++) {
+            statement = statement.param("value" + index, values.get(index));
+        }
+        statement.update();
+    }
+
+    private record SubscriptionKey(long chatId, long linkId) {}
+
+    private record SubscriptionValue(SubscriptionKey key, String value) {}
 }
