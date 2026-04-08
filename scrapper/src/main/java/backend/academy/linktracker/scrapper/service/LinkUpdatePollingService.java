@@ -41,6 +41,7 @@ public class LinkUpdatePollingService {
     private final LinkUpdateDescriptionFormatter linkUpdateDescriptionFormatter;
     private final SchedulerProperties schedulerProperties;
     private final DatabaseProperties databaseProperties;
+    private final PendingProcessingFailureReportStore pendingFailureReportStore;
     private final TransactionTemplate transactionTemplate;
 
     public LinkUpdatePollingService(
@@ -51,6 +52,7 @@ public class LinkUpdatePollingService {
             LinkUpdateDescriptionFormatter linkUpdateDescriptionFormatter,
             SchedulerProperties schedulerProperties,
             DatabaseProperties databaseProperties,
+            PendingProcessingFailureReportStore pendingFailureReportStore,
             PlatformTransactionManager transactionManager) {
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
@@ -59,6 +61,7 @@ public class LinkUpdatePollingService {
         this.linkUpdateDescriptionFormatter = linkUpdateDescriptionFormatter;
         this.schedulerProperties = schedulerProperties;
         this.databaseProperties = databaseProperties;
+        this.pendingFailureReportStore = pendingFailureReportStore;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -85,7 +88,8 @@ public class LinkUpdatePollingService {
                 .addKeyValue("operation", "checkUpdates")
                 .addKeyValue("linksChecked", checkedLinksCount)
                 .log("Links check finished");
-        sendFailureReports(failedLinksByChat);
+        pendingFailureReportStore.merge(failedLinksByChat);
+        sendFailureReports();
     }
 
     private ExecutorService createBatchExecutor() {
@@ -296,11 +300,12 @@ public class LinkUpdatePollingService {
         return Map.copyOf(copy);
     }
 
-    private void sendFailureReports(Map<Long, Set<URI>> failedLinksByChat) {
-        for (var entry : failedLinksByChat.entrySet()) {
+    private void sendFailureReports() {
+        for (var entry : pendingFailureReportStore.snapshot().entrySet()) {
             var description = buildFailureReport(entry.getValue());
             try {
                 botUpdatesClient.sendProcessingFailureReport(description, List.of(entry.getKey()));
+                pendingFailureReportStore.remove(entry.getKey(), entry.getValue());
             } catch (RuntimeException exception) {
                 LOGGER.atWarn()
                         .addKeyValue("operation", "sendFailureReport")

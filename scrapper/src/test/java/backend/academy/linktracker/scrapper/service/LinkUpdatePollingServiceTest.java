@@ -160,6 +160,35 @@ class LinkUpdatePollingServiceTest {
     }
 
     @Test
+    void checkUpdatesRetriesPendingFailureReportsOnNextRun() {
+        var trackedLinkRepository = new InMemoryTrackedLinkRepository();
+        var linkSubscriptionRepository = new InMemoryLinkSubscriptionRepository();
+        var trackedLink = trackedLinkRepository.create(
+                URI.create("https://github.com/user/retry-report"), Instant.parse("2025-03-01T00:00:00Z"));
+        linkSubscriptionRepository.add(new LinkSubscription(11L, trackedLink.id(), List.of(), List.of()));
+
+        var externalClient = new StubExternalLinkClient(trackedLink.url(), LinkCheckResult.failure());
+        var botClient = new RecordingBotUpdatesClient(false);
+        botClient.failReports = true;
+        var service =
+                newService(trackedLinkRepository, linkSubscriptionRepository, List.of(externalClient), botClient, 100);
+
+        service.checkUpdates();
+
+        assertEquals(0, botClient.reports.size());
+
+        botClient.failReports = false;
+        service.checkUpdates();
+
+        assertEquals(1, botClient.reports.size());
+        assertTrue(botClient
+                .reports
+                .getFirst()
+                .description()
+                .contains(trackedLink.url().toString()));
+    }
+
+    @Test
     void checkUpdatesNotifiesOnlySubscribersOfChangedLink() {
         var trackedLinkRepository = new InMemoryTrackedLinkRepository();
         var linkSubscriptionRepository = new InMemoryLinkSubscriptionRepository();
@@ -310,6 +339,7 @@ class LinkUpdatePollingServiceTest {
         schedulerProperties.setParallelism(parallelism);
         var databaseProperties = new DatabaseProperties();
         databaseProperties.setPageSize(1);
+        var pendingFailureReportStore = new PendingProcessingFailureReportStore();
         return new LinkUpdatePollingService(
                 trackedLinkRepository,
                 linkSubscriptionRepository,
@@ -318,6 +348,7 @@ class LinkUpdatePollingServiceTest {
                 linkUpdateDescriptionFormatter,
                 schedulerProperties,
                 databaseProperties,
+                pendingFailureReportStore,
                 new NoOpTransactionManager());
     }
 
@@ -328,6 +359,7 @@ class LinkUpdatePollingServiceTest {
         private final boolean fail;
         private final List<ReportNotification> reports = Collections.synchronizedList(new ArrayList<>());
         private final AtomicInteger attempts = new AtomicInteger();
+        private boolean failReports;
 
         private RecordingBotUpdatesClient(boolean fail) {
             this.fail = fail;
@@ -344,6 +376,9 @@ class LinkUpdatePollingServiceTest {
 
         @Override
         public void sendProcessingFailureReport(String description, List<Long> tgChatIds) {
+            if (failReports) {
+                throw new BotUpdatesClientException("Report failed", new IllegalStateException("failure"));
+            }
             for (var chatId : tgChatIds) {
                 reports.add(new ReportNotification(chatId, description));
             }

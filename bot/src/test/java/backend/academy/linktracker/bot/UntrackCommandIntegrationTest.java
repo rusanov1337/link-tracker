@@ -17,7 +17,6 @@ import com.github.tomakehurst.wiremock.client.WireMock;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -25,7 +24,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.wiremock.spring.EnableWireMock;
 
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
 @EnableWireMock
 @TestPropertySource(properties = "app.telegram.polling-enabled=true")

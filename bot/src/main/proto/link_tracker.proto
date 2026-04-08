@@ -16,6 +16,7 @@ service ScrapperService {
 
 service BotUpdatesService {
   rpc ProcessUpdate(LinkUpdateRequest) returns (Empty);
+  rpc ProcessReport(ProcessingFailureReportRequest) returns (Empty);
 }
 
 message Empty {}
@@ -61,4 +62,9 @@ message LinkUpdateRequest {
   string url = 2;
   string description = 3;
   repeated int64 tg_chat_ids = 4;
+}
+
+message ProcessingFailureReportRequest {
+  string description = 1;
+  repeated int64 tg_chat_ids = 2;
 }

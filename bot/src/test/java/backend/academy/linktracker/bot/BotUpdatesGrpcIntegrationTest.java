@@ -9,10 +9,12 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import backend.academy.linktracker.bot.service.PendingFailureReportStore;
 import backend.academy.linktracker.bot.service.PendingLinkUpdateStore;
 import backend.academy.linktracker.bot.service.RecentlyDeliveredLinkUpdateStore;
 import backend.academy.linktracker.grpc.BotUpdatesServiceGrpc;
 import backend.academy.linktracker.grpc.LinkUpdateRequest;
+import backend.academy.linktracker.grpc.ProcessingFailureReportRequest;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
@@ -22,7 +24,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -30,7 +31,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.wiremock.spring.EnableWireMock;
 
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
 @EnableWireMock
 @TestPropertySource(
@@ -44,6 +44,9 @@ class BotUpdatesGrpcIntegrationTest {
 
     @Autowired
     private PendingLinkUpdateStore pendingLinkUpdateStore;
+
+    @Autowired
+    private PendingFailureReportStore pendingFailureReportStore;
 
     @Autowired
     private RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore;
@@ -128,6 +131,57 @@ class BotUpdatesGrpcIntegrationTest {
         }
 
         assertEquals(2, pendingLinkUpdateStore.size());
+        verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+    }
+
+    @Test
+    void validGrpcFailureReportSendsTelegramMessages() {
+        stubFor(post(urlMatching("/bot[^/]+/sendMessage"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .withBody("""
+                                {
+                                  "ok": true,
+                                  "result": {
+                                    "message_id": 100
+                                  }
+                                }
+                                """)));
+
+        var channel = newGrpcChannel();
+        try {
+            var request = ProcessingFailureReportRequest.newBuilder()
+                    .setDescription("Failed links")
+                    .addAllTgChatIds(List.of(111L, 222L))
+                    .build();
+
+            BotUpdatesServiceGrpc.newBlockingStub(channel).processReport(request);
+        } finally {
+            channel.shutdownNow();
+        }
+
+        verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
+    }
+
+    @Test
+    void telegramDeliveryFailureQueuesPendingGrpcReportsAndReturnsOk() {
+        stubFor(post(urlMatching("/bot[^/]+/sendMessage"))
+                .willReturn(aResponse().withStatus(500)));
+
+        var channel = newGrpcChannel();
+        try {
+            var request = ProcessingFailureReportRequest.newBuilder()
+                    .setDescription("Failed links")
+                    .addAllTgChatIds(List.of(111L, 222L))
+                    .build();
+
+            BotUpdatesServiceGrpc.newBlockingStub(channel).processReport(request);
+        } finally {
+            channel.shutdownNow();
+        }
+
+        assertEquals(2, pendingFailureReportStore.size());
         verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
     }
 

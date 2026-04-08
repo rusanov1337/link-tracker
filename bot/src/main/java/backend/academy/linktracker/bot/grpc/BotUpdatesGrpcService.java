@@ -1,10 +1,12 @@
 package backend.academy.linktracker.bot.grpc;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
+import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import backend.academy.linktracker.bot.service.LinkUpdateNotificationService;
 import backend.academy.linktracker.grpc.BotUpdatesServiceGrpc;
 import backend.academy.linktracker.grpc.Empty;
 import backend.academy.linktracker.grpc.LinkUpdateRequest;
+import backend.academy.linktracker.grpc.ProcessingFailureReportRequest;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import jakarta.validation.Validator;
@@ -40,10 +42,36 @@ public class BotUpdatesGrpcService extends BotUpdatesServiceGrpc.BotUpdatesServi
         }
     }
 
+    @Override
+    public void processReport(ProcessingFailureReportRequest request, StreamObserver<Empty> responseObserver) {
+        try {
+            validateRequest(request);
+            linkUpdateNotificationService.processReport(
+                    new ProcessingFailureReport(request.getDescription(), request.getTgChatIdsList()));
+            responseObserver.onNext(Empty.newBuilder().build());
+            responseObserver.onCompleted();
+        } catch (IllegalArgumentException exception) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(exception.getMessage())
+                    .asRuntimeException());
+        } catch (RuntimeException exception) {
+            responseObserver.onError(
+                    Status.INTERNAL.withDescription("Failed to process report").asRuntimeException());
+        }
+    }
+
     private void validateRequest(LinkUpdateRequest request) {
         var linkUpdate =
                 new LinkUpdate(request.getId(), request.getUrl(), request.getDescription(), request.getTgChatIdsList());
-        var violations = validator.validate(linkUpdate);
+        validate(linkUpdate);
+    }
+
+    private void validateRequest(ProcessingFailureReportRequest request) {
+        validate(new ProcessingFailureReport(request.getDescription(), request.getTgChatIdsList()));
+    }
+
+    private void validate(Object request) {
+        var violations = validator.validate(request);
         if (violations.isEmpty()) {
             return;
         }

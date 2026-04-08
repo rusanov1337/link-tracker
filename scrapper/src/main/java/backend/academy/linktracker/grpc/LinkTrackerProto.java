@@ -58,6 +58,10 @@ public final class LinkTrackerProto extends com.google.protobuf.GeneratedFile {
             internal_static_linktracker_grpc_LinkUpdateRequest_descriptor;
     static final com.google.protobuf.GeneratedMessage.FieldAccessorTable
             internal_static_linktracker_grpc_LinkUpdateRequest_fieldAccessorTable;
+    static final com.google.protobuf.Descriptors.Descriptor
+            internal_static_linktracker_grpc_ProcessingFailureReportRequest_descriptor;
+    static final com.google.protobuf.GeneratedMessage.FieldAccessorTable
+            internal_static_linktracker_grpc_ProcessingFailureReportRequest_fieldAccessorTable;
 
     public static com.google.protobuf.Descriptors.FileDescriptor getDescriptor() {
         return descriptor;
@@ -80,22 +84,26 @@ public final class LinkTrackerProto extends com.google.protobuf.GeneratedFile {
                     + "(\0132\036.linktracker.grpc.LinkResponse\022\014\n\004si"
                     + "ze\030\002 \001(\005\"V\n\021LinkUpdateRequest\022\n\n\002id\030\001 \001("
                     + "\003\022\013\n\003url\030\002 \001(\t\022\023\n\013description\030\003 \001(\t\022\023\n\013t"
-                    + "g_chat_ids\030\004 \003(\0032\243\003\n\017ScrapperService\022N\n\014"
-                    + "RegisterChat\022%.linktracker.grpc.Register"
-                    + "ChatRequest\032\027.linktracker.grpc.Empty\022J\n\n"
-                    + "DeleteChat\022#.linktracker.grpc.DeleteChat"
-                    + "Request\032\027.linktracker.grpc.Empty\022T\n\tList"
-                    + "Links\022\".linktracker.grpc.ListLinksReques"
-                    + "t\032#.linktracker.grpc.ListLinksResponse\022K"
-                    + "\n\007AddLink\022 .linktracker.grpc.AddLinkRequ"
-                    + "est\032\036.linktracker.grpc.LinkResponse\022Q\n\nR"
-                    + "emoveLink\022#.linktracker.grpc.RemoveLinkR"
-                    + "equest\032\036.linktracker.grpc.LinkResponse2b"
-                    + "\n\021BotUpdatesService\022M\n\rProcessUpdate\022#.l"
-                    + "inktracker.grpc.LinkUpdateRequest\032\027.link"
-                    + "tracker.grpc.EmptyB6\n backend.academy.li"
-                    + "nktracker.grpcB\020LinkTrackerProtoP\001b\006prot"
-                    + "o3"
+                    + "g_chat_ids\030\004 \003(\003\"J\n\036ProcessingFailureRep"
+                    + "ortRequest\022\023\n\013description\030\001 \001(\t\022\023\n\013tg_ch"
+                    + "at_ids\030\002 \003(\0032\243\003\n\017ScrapperService\022N\n\014Regi"
+                    + "sterChat\022%.linktracker.grpc.RegisterChat"
+                    + "Request\032\027.linktracker.grpc.Empty\022J\n\nDele"
+                    + "teChat\022#.linktracker.grpc.DeleteChatRequ"
+                    + "est\032\027.linktracker.grpc.Empty\022T\n\tListLink"
+                    + "s\022\".linktracker.grpc.ListLinksRequest\032#."
+                    + "linktracker.grpc.ListLinksResponse\022K\n\007Ad"
+                    + "dLink\022 .linktracker.grpc.AddLinkRequest\032"
+                    + "\036.linktracker.grpc.LinkResponse\022Q\n\nRemov"
+                    + "eLink\022#.linktracker.grpc.RemoveLinkReque"
+                    + "st\032\036.linktracker.grpc.LinkResponse2\276\001\n\021B"
+                    + "otUpdatesService\022M\n\rProcessUpdate\022#.link"
+                    + "tracker.grpc.LinkUpdateRequest\032\027.linktra"
+                    + "cker.grpc.Empty\022Z\n\rProcessReport\0220.linkt"
+                    + "racker.grpc.ProcessingFailureReportReque"
+                    + "st\032\027.linktracker.grpc.EmptyB6\n backend.a"
+                    + "cademy.linktracker.grpcB\020LinkTrackerProt"
+                    + "oP\001b\006proto3"
         };
         descriptor = com.google.protobuf.Descriptors.FileDescriptor.internalBuildGeneratedFileFrom(
                 descriptorData, new com.google.protobuf.Descriptors.FileDescriptor[] {});
@@ -158,6 +166,14 @@ public final class LinkTrackerProto extends com.google.protobuf.GeneratedFile {
                 new com.google.protobuf.GeneratedMessage.FieldAccessorTable(
                         internal_static_linktracker_grpc_LinkUpdateRequest_descriptor, new java.lang.String[] {
                             "Id", "Url", "Description", "TgChatIds",
+                        });
+        internal_static_linktracker_grpc_ProcessingFailureReportRequest_descriptor =
+                getDescriptor().getMessageType(9);
+        internal_static_linktracker_grpc_ProcessingFailureReportRequest_fieldAccessorTable =
+                new com.google.protobuf.GeneratedMessage.FieldAccessorTable(
+                        internal_static_linktracker_grpc_ProcessingFailureReportRequest_descriptor,
+                        new java.lang.String[] {
+                            "Description", "TgChatIds",
                         });
         descriptor.resolveAllFeaturesImmutable();
     }

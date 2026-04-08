@@ -2,6 +2,7 @@ package backend.academy.linktracker.scrapper.client.bot;
 
 import backend.academy.linktracker.grpc.BotUpdatesServiceGrpc;
 import backend.academy.linktracker.grpc.LinkUpdateRequest;
+import backend.academy.linktracker.grpc.ProcessingFailureReportRequest;
 import backend.academy.linktracker.scrapper.properties.BotProperties;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -43,6 +44,22 @@ public class GrpcBotUpdatesClient implements BotUpdatesClient {
         } catch (StatusRuntimeException exception) {
             throw new BotUpdatesClientException(
                     "Bot gRPC updates endpoint returned status "
+                            + exception.getStatus().getCode(),
+                    exception);
+        }
+    }
+
+    @Override
+    public void sendProcessingFailureReport(String description, List<Long> tgChatIds) {
+        try {
+            var request = ProcessingFailureReportRequest.newBuilder()
+                    .setDescription(description)
+                    .addAllTgChatIds(tgChatIds)
+                    .build();
+            blockingStub.processReport(request);
+        } catch (StatusRuntimeException exception) {
+            throw new BotUpdatesClientException(
+                    "Bot gRPC reports endpoint returned status "
                             + exception.getStatus().getCode(),
                     exception);
         }

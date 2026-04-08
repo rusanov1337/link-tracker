@@ -20,8 +20,9 @@ class LinkUpdateNotificationServiceTest {
     void processStoresFailedDeliveriesForRetry() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
         var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
         var successResponse = successResponse();
         var failureResponse = failureResponse();
 
@@ -39,10 +40,11 @@ class LinkUpdateNotificationServiceTest {
     void retryPendingUpdatesRemovesSuccessfullyDeliveredItems() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
         pendingLinkUpdateStore.saveAll(
                 List.of(new PendingLinkUpdate(1L, 22L, "https://github.com/user/repo", "updated")));
         var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -56,8 +58,9 @@ class LinkUpdateNotificationServiceTest {
     void processStoresFailedDeliveriesWhenTelegramReturnsNullResponse() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
         var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
 
         when(telegramBot.execute(any())).thenReturn(null);
 
@@ -72,8 +75,9 @@ class LinkUpdateNotificationServiceTest {
     void processDoesNotQueueDuplicatePendingUpdates() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
         var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
 
         when(telegramBot.execute(any())).thenReturn(null);
 
@@ -90,8 +94,9 @@ class LinkUpdateNotificationServiceTest {
     void processSkipsRecentlyDeliveredUpdates() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
         var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -108,8 +113,9 @@ class LinkUpdateNotificationServiceTest {
     void processReportSendsMessageToAllChatsWithoutQueueingPendingItems() {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
         var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, recentlyDeliveredLinkUpdateStore());
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -118,6 +124,42 @@ class LinkUpdateNotificationServiceTest {
 
         verify(telegramBot, org.mockito.Mockito.times(2)).execute(any());
         assertEquals(0, pendingLinkUpdateStore.size());
+        assertEquals(0, pendingFailureReportStore.size());
+    }
+
+    @Test
+    void processReportQueuesFailedDeliveriesForRetry() {
+        var telegramBot = mock(TelegramBot.class);
+        var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var failureResponse = failureResponse();
+
+        when(telegramBot.execute(any())).thenReturn(failureResponse);
+
+        service.processReport(new ProcessingFailureReport("Failed links", List.of(11L, 22L)));
+
+        assertEquals(
+                List.of(new PendingFailureReport(11L, "Failed links"), new PendingFailureReport(22L, "Failed links")),
+                pendingFailureReportStore.findAll());
+    }
+
+    @Test
+    void retryPendingUpdatesRemovesSuccessfullyDeliveredReports() {
+        var telegramBot = mock(TelegramBot.class);
+        var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
+        pendingFailureReportStore.saveAll(List.of(new PendingFailureReport(22L, "Failed links")));
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var successResponse = successResponse();
+
+        when(telegramBot.execute(any())).thenReturn(successResponse);
+
+        service.retryPendingUpdates();
+
+        assertEquals(0, pendingFailureReportStore.size());
     }
 
     private RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore() {

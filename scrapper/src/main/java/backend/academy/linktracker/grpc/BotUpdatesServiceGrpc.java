@@ -49,6 +49,47 @@ public final class BotUpdatesServiceGrpc {
         return getProcessUpdateMethod;
     }
 
+    private static volatile io.grpc.MethodDescriptor<
+                    backend.academy.linktracker.grpc.ProcessingFailureReportRequest,
+                    backend.academy.linktracker.grpc.Empty>
+            getProcessReportMethod;
+
+    @io.grpc.stub.annotations.RpcMethod(
+            fullMethodName = SERVICE_NAME + '/' + "ProcessReport",
+            requestType = backend.academy.linktracker.grpc.ProcessingFailureReportRequest.class,
+            responseType = backend.academy.linktracker.grpc.Empty.class,
+            methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+    public static io.grpc.MethodDescriptor<
+                    backend.academy.linktracker.grpc.ProcessingFailureReportRequest,
+                    backend.academy.linktracker.grpc.Empty>
+            getProcessReportMethod() {
+        io.grpc.MethodDescriptor<
+                        backend.academy.linktracker.grpc.ProcessingFailureReportRequest,
+                        backend.academy.linktracker.grpc.Empty>
+                getProcessReportMethod;
+        if ((getProcessReportMethod = BotUpdatesServiceGrpc.getProcessReportMethod) == null) {
+            synchronized (BotUpdatesServiceGrpc.class) {
+                if ((getProcessReportMethod = BotUpdatesServiceGrpc.getProcessReportMethod) == null) {
+                    BotUpdatesServiceGrpc.getProcessReportMethod = getProcessReportMethod = io.grpc.MethodDescriptor
+                            .<backend.academy.linktracker.grpc.ProcessingFailureReportRequest,
+                                    backend.academy.linktracker.grpc.Empty>
+                                    newBuilder()
+                            .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+                            .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ProcessReport"))
+                            .setSampledToLocalTracing(true)
+                            .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                                    backend.academy.linktracker.grpc.ProcessingFailureReportRequest
+                                            .getDefaultInstance()))
+                            .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                                    backend.academy.linktracker.grpc.Empty.getDefaultInstance()))
+                            .setSchemaDescriptor(new BotUpdatesServiceMethodDescriptorSupplier("ProcessReport"))
+                            .build();
+                }
+            }
+        }
+        return getProcessReportMethod;
+    }
+
     /**
      * Creates a new async stub that supports all call types for the service
      */
@@ -119,6 +160,14 @@ public final class BotUpdatesServiceGrpc {
                 io.grpc.stub.StreamObserver<backend.academy.linktracker.grpc.Empty> responseObserver) {
             io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getProcessUpdateMethod(), responseObserver);
         }
+
+        /**
+         */
+        default void processReport(
+                backend.academy.linktracker.grpc.ProcessingFailureReportRequest request,
+                io.grpc.stub.StreamObserver<backend.academy.linktracker.grpc.Empty> responseObserver) {
+            io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getProcessReportMethod(), responseObserver);
+        }
     }
 
     /**
@@ -153,6 +202,15 @@ public final class BotUpdatesServiceGrpc {
             io.grpc.stub.ClientCalls.asyncUnaryCall(
                     getChannel().newCall(getProcessUpdateMethod(), getCallOptions()), request, responseObserver);
         }
+
+        /**
+         */
+        public void processReport(
+                backend.academy.linktracker.grpc.ProcessingFailureReportRequest request,
+                io.grpc.stub.StreamObserver<backend.academy.linktracker.grpc.Empty> responseObserver) {
+            io.grpc.stub.ClientCalls.asyncUnaryCall(
+                    getChannel().newCall(getProcessReportMethod(), getCallOptions()), request, responseObserver);
+        }
     }
 
     /**
@@ -175,6 +233,15 @@ public final class BotUpdatesServiceGrpc {
                 backend.academy.linktracker.grpc.LinkUpdateRequest request) throws io.grpc.StatusException {
             return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
                     getChannel(), getProcessUpdateMethod(), getCallOptions(), request);
+        }
+
+        /**
+         */
+        public backend.academy.linktracker.grpc.Empty processReport(
+                backend.academy.linktracker.grpc.ProcessingFailureReportRequest request)
+                throws io.grpc.StatusException {
+            return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+                    getChannel(), getProcessReportMethod(), getCallOptions(), request);
         }
     }
 
@@ -199,6 +266,14 @@ public final class BotUpdatesServiceGrpc {
             return io.grpc.stub.ClientCalls.blockingUnaryCall(
                     getChannel(), getProcessUpdateMethod(), getCallOptions(), request);
         }
+
+        /**
+         */
+        public backend.academy.linktracker.grpc.Empty processReport(
+                backend.academy.linktracker.grpc.ProcessingFailureReportRequest request) {
+            return io.grpc.stub.ClientCalls.blockingUnaryCall(
+                    getChannel(), getProcessReportMethod(), getCallOptions(), request);
+        }
     }
 
     /**
@@ -222,9 +297,18 @@ public final class BotUpdatesServiceGrpc {
             return io.grpc.stub.ClientCalls.futureUnaryCall(
                     getChannel().newCall(getProcessUpdateMethod(), getCallOptions()), request);
         }
+
+        /**
+         */
+        public com.google.common.util.concurrent.ListenableFuture<backend.academy.linktracker.grpc.Empty> processReport(
+                backend.academy.linktracker.grpc.ProcessingFailureReportRequest request) {
+            return io.grpc.stub.ClientCalls.futureUnaryCall(
+                    getChannel().newCall(getProcessReportMethod(), getCallOptions()), request);
+        }
     }
 
     private static final int METHODID_PROCESS_UPDATE = 0;
+    private static final int METHODID_PROCESS_REPORT = 1;
 
     private static final class MethodHandlers<Req, Resp>
             implements io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -246,6 +330,11 @@ public final class BotUpdatesServiceGrpc {
                 case METHODID_PROCESS_UPDATE:
                     serviceImpl.processUpdate(
                             (backend.academy.linktracker.grpc.LinkUpdateRequest) request,
+                            (io.grpc.stub.StreamObserver<backend.academy.linktracker.grpc.Empty>) responseObserver);
+                    break;
+                case METHODID_PROCESS_REPORT:
+                    serviceImpl.processReport(
+                            (backend.academy.linktracker.grpc.ProcessingFailureReportRequest) request,
                             (io.grpc.stub.StreamObserver<backend.academy.linktracker.grpc.Empty>) responseObserver);
                     break;
                 default:
@@ -270,6 +359,11 @@ public final class BotUpdatesServiceGrpc {
                         io.grpc.stub.ServerCalls.asyncUnaryCall(new MethodHandlers<
                                 backend.academy.linktracker.grpc.LinkUpdateRequest,
                                 backend.academy.linktracker.grpc.Empty>(service, METHODID_PROCESS_UPDATE)))
+                .addMethod(
+                        getProcessReportMethod(),
+                        io.grpc.stub.ServerCalls.asyncUnaryCall(new MethodHandlers<
+                                backend.academy.linktracker.grpc.ProcessingFailureReportRequest,
+                                backend.academy.linktracker.grpc.Empty>(service, METHODID_PROCESS_REPORT)))
                 .build();
     }
 
@@ -317,6 +411,7 @@ public final class BotUpdatesServiceGrpc {
                     serviceDescriptor = result = io.grpc.ServiceDescriptor.newBuilder(SERVICE_NAME)
                             .setSchemaDescriptor(new BotUpdatesServiceFileDescriptorSupplier())
                             .addMethod(getProcessUpdateMethod())
+                            .addMethod(getProcessReportMethod())
                             .build();
                 }
             }

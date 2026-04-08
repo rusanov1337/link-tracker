@@ -17,6 +17,7 @@ public class LinkUpdateNotificationService {
 
     private final TelegramBot telegramBot;
     private final PendingLinkUpdateStore pendingLinkUpdateStore;
+    private final PendingFailureReportStore pendingFailureReportStore;
     private final RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore;
 
     public void process(LinkUpdate linkUpdate) {
@@ -57,11 +58,30 @@ public class LinkUpdateNotificationService {
                 recentlyDeliveredLinkUpdateStore.markDelivered(pendingUpdate);
             }
         }
+
+        var pendingReports = pendingFailureReportStore.findAll();
+        for (var pendingReport : pendingReports) {
+            if (sendReport(pendingReport)) {
+                pendingFailureReportStore.remove(pendingReport);
+            }
+        }
     }
 
     public void processReport(ProcessingFailureReport report) {
+        var pendingReports = new ArrayList<PendingFailureReport>();
         for (var chatId : report.tgChatIds()) {
-            sendTextMessage(chatId, report.description());
+            var pendingReport = new PendingFailureReport(chatId, report.description());
+            if (!sendReport(pendingReport)) {
+                pendingReports.add(pendingReport);
+            }
+        }
+
+        if (!pendingReports.isEmpty()) {
+            pendingFailureReportStore.saveAll(pendingReports);
+            log.atWarn()
+                    .addKeyValue("operation", "queuePendingFailureReports")
+                    .addKeyValue("pendingReportsCount", pendingReports.size())
+                    .log("Failure reports queued for retry");
         }
     }
 
@@ -73,8 +93,8 @@ public class LinkUpdateNotificationService {
         return sendTextMessage(pendingUpdate.chatId(), buildMessage(pendingUpdate), pendingUpdate);
     }
 
-    private boolean sendTextMessage(long chatId, String text) {
-        return sendTextMessage(chatId, text, null);
+    private boolean sendReport(PendingFailureReport pendingReport) {
+        return sendTextMessage(pendingReport.chatId(), pendingReport.description(), null);
     }
 
     @SuppressFBWarnings(

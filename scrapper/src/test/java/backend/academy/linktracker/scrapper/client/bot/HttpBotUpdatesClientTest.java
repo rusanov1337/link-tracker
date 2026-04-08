@@ -10,10 +10,12 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.json.JacksonJsonParser;
 import org.springframework.web.client.RestClient;
 
 class HttpBotUpdatesClientTest {
@@ -51,11 +53,11 @@ class HttpBotUpdatesClientTest {
 
         assertDoesNotThrow(() -> client.sendLinkUpdate(
                 42L, URI.create("https://github.com/octocat/hello-world"), "Updated", List.of(1L, 2L)));
-        var requestBody = requestBodyRef.get();
-        assertTrue(requestBody.contains("\"id\":42"));
-        assertTrue(requestBody.contains("\"url\":\"https://github.com/octocat/hello-world\""));
-        assertTrue(requestBody.contains("\"description\":\"Updated\""));
-        assertTrue(requestBody.contains("\"tgChatIds\":[1,2]"));
+        var requestBody = parseRequestBody(requestBodyRef.get());
+        assertTrue(requestBody.get("id") instanceof Number id && id.longValue() == 42L);
+        assertTrue("https://github.com/octocat/hello-world".equals(requestBody.get("url")));
+        assertTrue("Updated".equals(requestBody.get("description")));
+        assertTrue(List.of(1, 2).equals(requestBody.get("tgChatIds")));
     }
 
     @Test
@@ -81,7 +83,8 @@ class HttpBotUpdatesClientTest {
                 BotUpdatesClientException.class,
                 () -> unavailableClient.sendLinkUpdate(
                         1L, URI.create("https://github.com/octocat/hello-world"), "Updated", List.of(1L)));
-        assertTrue(exception.getMessage().contains("failed"));
+        assertTrue(exception.getMessage().contains("Bot updates endpoint call failed"));
+        assertTrue(exception.getCause() != null);
     }
 
     @Test
@@ -95,8 +98,12 @@ class HttpBotUpdatesClientTest {
         });
 
         assertDoesNotThrow(() -> client.sendProcessingFailureReport("Failed links", List.of(1L, 2L)));
-        var requestBody = requestBodyRef.get();
-        assertTrue(requestBody.contains("\"description\":\"Failed links\""));
-        assertTrue(requestBody.contains("\"tgChatIds\":[1,2]"));
+        var requestBody = parseRequestBody(requestBodyRef.get());
+        assertTrue("Failed links".equals(requestBody.get("description")));
+        assertTrue(List.of(1, 2).equals(requestBody.get("tgChatIds")));
+    }
+
+    private Map<String, Object> parseRequestBody(String requestBody) {
+        return new JacksonJsonParser().parseMap(requestBody);
     }
 }
