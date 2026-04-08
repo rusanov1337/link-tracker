@@ -120,7 +120,7 @@ class LinkUpdatePollingServiceTest {
     }
 
     @Test
-    void checkUpdatesKeepsLastUpdatedWhenBotNotificationFailed() {
+    void checkUpdatesPersistsLatestStateWhenBotNotificationFailed() {
         var trackedLinkRepository = new InMemoryTrackedLinkRepository();
         var linkSubscriptionRepository = new InMemoryLinkSubscriptionRepository();
         var initialUpdatedAt = Instant.parse("2025-03-01T00:00:00Z");
@@ -147,10 +147,16 @@ class LinkUpdatePollingServiceTest {
 
         assertEquals(1, botClient.attempts.get());
         var storedLink = trackedLinkRepository.findById(trackedLink.id()).orElseThrow();
-        assertEquals(initialUpdatedAt, storedLink.lastUpdatedAt());
-        assertEquals(null, storedLink.lastEventAt());
-        assertEquals(null, storedLink.lastEventCursor());
+        assertEquals(Instant.parse("2025-03-05T00:00:00Z"), storedLink.lastUpdatedAt());
+        assertEquals(Instant.parse("2025-03-05T00:00:00Z"), storedLink.lastEventAt());
+        assertEquals("102", storedLink.lastEventCursor());
         assertTrue(storedLink.lastCheckedAt().isAfter(initialUpdatedAt));
+        assertEquals(1, botClient.reports.size());
+        assertTrue(botClient
+                .reports
+                .getFirst()
+                .description()
+                .contains(trackedLink.url().toString()));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package backend.academy.linktracker.scrapper.properties;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -24,7 +25,8 @@ public class SchedulerProperties {
     @DurationUnit(ChronoUnit.MILLIS)
     private Duration interval = Duration.ofMinutes(1);
 
-    @Min(1)
+    @Min(50)
+    @Max(500)
     private int batchSize = 500;
 
     @Min(1)

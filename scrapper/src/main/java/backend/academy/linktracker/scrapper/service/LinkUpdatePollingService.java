@@ -13,6 +13,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,11 +69,13 @@ public class LinkUpdatePollingService {
         var executorService = createBatchExecutor();
         try {
             while (true) {
-                var processedBatchSize = processNextBatch(checkedAt, failedLinksByChat, executorService);
-                if (processedBatchSize == 0) {
+                var batchOutcome = processNextBatch(checkedAt, executorService);
+                if (batchOutcome.processedLinksCount() == 0) {
                     break;
                 }
-                checkedLinksCount += processedBatchSize;
+                checkedLinksCount += batchOutcome.processedLinksCount();
+                mergeFailedLinks(batchOutcome.failedLinksByChat(), failedLinksByChat);
+                sendNotifications(batchOutcome.notifications(), failedLinksByChat);
             }
         } finally {
             shutdownExecutor(executorService);
@@ -101,20 +104,21 @@ public class LinkUpdatePollingService {
         executorService.shutdown();
     }
 
-    private int processNextBatch(
-            Instant checkedAt, Map<Long, Set<URI>> failedLinksByChat, ExecutorService executorService) {
+    private BatchOutcome processNextBatch(Instant checkedAt, ExecutorService executorService) {
         return transactionTemplate.execute(status -> {
             // Keep row locks until all fetched states are applied to avoid duplicate notifications
             // when several scrapper instances poll the same rows concurrently.
             var links = trackedLinkRepository.lockNextPageToCheck(checkedAt, schedulerProperties.getBatchSize());
             if (links.isEmpty()) {
-                return 0;
+                return BatchOutcome.empty();
             }
 
+            var notifications = new ArrayList<PendingNotification>();
+            var failedLinksByChat = new HashMap<Long, Set<URI>>();
             for (var fetchedState : fetchBatchStates(links, executorService)) {
-                applyFetchedState(fetchedState, checkedAt, failedLinksByChat);
+                applyFetchedState(fetchedState, checkedAt, notifications, failedLinksByChat);
             }
-            return links.size();
+            return new BatchOutcome(links.size(), List.copyOf(notifications), copyFailureLinks(failedLinksByChat));
         });
     }
 
@@ -169,7 +173,10 @@ public class LinkUpdatePollingService {
     }
 
     private void applyFetchedState(
-            FetchedLinkState fetchedState, Instant checkedAt, Map<Long, Set<URI>> failedLinksByChat) {
+            FetchedLinkState fetchedState,
+            Instant checkedAt,
+            List<PendingNotification> notifications,
+            Map<Long, Set<URI>> failedLinksByChat) {
         var trackedLink = fetchedState.trackedLink();
         if (!fetchedState.hasSupportedClient()) {
             trackedLinkRepository.update(trackedLink.withLastCheckedAt(checkedAt));
@@ -180,9 +187,7 @@ public class LinkUpdatePollingService {
             recordFailedLink(trackedLink, failedLinksByChat);
             return;
         }
-        if (!processFetchedState(trackedLink, checkedAt, fetchedState.checkResult())) {
-            recordFailedLink(trackedLink, failedLinksByChat);
-        }
+        processFetchedState(trackedLink, checkedAt, fetchedState.checkResult(), notifications, failedLinksByChat);
     }
 
     private Optional<ExternalLinkClient> findClient(TrackedLink trackedLink) {
@@ -191,41 +196,56 @@ public class LinkUpdatePollingService {
                 .findFirst();
     }
 
-    private boolean processFetchedState(TrackedLink trackedLink, Instant checkedAt, LinkCheckResult checkResult) {
+    private void processFetchedState(
+            TrackedLink trackedLink,
+            Instant checkedAt,
+            LinkCheckResult checkResult,
+            List<PendingNotification> notifications,
+            Map<Long, Set<URI>> failedLinksByChat) {
         var currentState = trackedLink.withLastCheckedAt(checkedAt);
         if (checkResult.failed()) {
             trackedLinkRepository.update(currentState);
-            return false;
+            recordFailedLink(trackedLink, failedLinksByChat);
+            return;
         }
         if (checkResult.updates().isEmpty()) {
             trackedLinkRepository.update(currentState);
-            return true;
+            return;
         }
 
         var chatIds = findSubscriberChatIds(trackedLink.id());
         for (var update : checkResult.updates()) {
-            if (!chatIds.isEmpty() && !notifyBot(trackedLink, update, chatIds)) {
-                trackedLinkRepository.update(currentState);
-                return false;
+            if (!chatIds.isEmpty()) {
+                notifications.add(new PendingNotification(trackedLink.id(), trackedLink.url(), update, chatIds));
             }
-
             currentState = currentState
                     .withLastUpdatedAt(update.createdAt())
                     .withLastEventState(update.createdAt(), update.cursor());
         }
 
         trackedLinkRepository.update(currentState);
-        return true;
     }
 
-    private boolean notifyBot(TrackedLink trackedLink, DetectedUpdate update, List<Long> chatIds) {
+    private void sendNotifications(List<PendingNotification> notifications, Map<Long, Set<URI>> failedLinksByChat) {
+        for (var notification : notifications) {
+            if (!notifyBot(
+                    notification.trackedLinkId(),
+                    notification.trackedLinkUrl(),
+                    notification.update(),
+                    notification.chatIds())) {
+                recordFailedLink(notification.trackedLinkUrl(), notification.chatIds(), failedLinksByChat);
+            }
+        }
+    }
+
+    private boolean notifyBot(long trackedLinkId, URI trackedLinkUrl, DetectedUpdate update, List<Long> chatIds) {
         var description = linkUpdateDescriptionFormatter.format(update);
         try {
-            botUpdatesClient.sendLinkUpdate(trackedLink.id(), trackedLink.url(), description, chatIds);
+            botUpdatesClient.sendLinkUpdate(trackedLinkId, trackedLinkUrl, description, chatIds);
             LOGGER.atInfo()
                     .addKeyValue("operation", "notifyBot")
-                    .addKeyValue("linkId", trackedLink.id())
-                    .addKeyValue("url", trackedLink.url())
+                    .addKeyValue("linkId", trackedLinkId)
+                    .addKeyValue("url", trackedLinkUrl)
                     .addKeyValue("eventType", update.eventType())
                     .addKeyValue("chatIdsCount", chatIds.size())
                     .addKeyValue("success", true)
@@ -234,8 +254,8 @@ public class LinkUpdatePollingService {
         } catch (RuntimeException exception) {
             LOGGER.atWarn()
                     .addKeyValue("operation", "notifyBot")
-                    .addKeyValue("linkId", trackedLink.id())
-                    .addKeyValue("url", trackedLink.url())
+                    .addKeyValue("linkId", trackedLinkId)
+                    .addKeyValue("url", trackedLinkUrl)
                     .addKeyValue("eventType", update.eventType())
                     .addKeyValue("chatIdsCount", chatIds.size())
                     .addKeyValue("success", false)
@@ -251,6 +271,29 @@ public class LinkUpdatePollingService {
                     .computeIfAbsent(chatId, ignored -> ConcurrentHashMap.newKeySet())
                     .add(trackedLink.url());
         }
+    }
+
+    private void recordFailedLink(URI trackedLinkUrl, List<Long> chatIds, Map<Long, Set<URI>> failedLinksByChat) {
+        for (var chatId : chatIds) {
+            failedLinksByChat
+                    .computeIfAbsent(chatId, ignored -> ConcurrentHashMap.newKeySet())
+                    .add(trackedLinkUrl);
+        }
+    }
+
+    private void mergeFailedLinks(Map<Long, Set<URI>> source, Map<Long, Set<URI>> target) {
+        for (var entry : source.entrySet()) {
+            target.computeIfAbsent(entry.getKey(), ignored -> ConcurrentHashMap.newKeySet())
+                    .addAll(entry.getValue());
+        }
+    }
+
+    private Map<Long, Set<URI>> copyFailureLinks(Map<Long, Set<URI>> failedLinksByChat) {
+        var copy = new HashMap<Long, Set<URI>>();
+        for (var entry : failedLinksByChat.entrySet()) {
+            copy.put(entry.getKey(), Set.copyOf(entry.getValue()));
+        }
+        return Map.copyOf(copy);
     }
 
     private void sendFailureReports(Map<Long, Set<URI>> failedLinksByChat) {
@@ -308,6 +351,20 @@ public class LinkUpdatePollingService {
 
         private static FetchedLinkState failure(TrackedLink trackedLink, RuntimeException failure) {
             return new FetchedLinkState(trackedLink, true, null, failure);
+        }
+    }
+
+    private record PendingNotification(
+            long trackedLinkId, URI trackedLinkUrl, DetectedUpdate update, List<Long> chatIds) {
+        private PendingNotification {
+            chatIds = List.copyOf(chatIds);
+        }
+    }
+
+    private record BatchOutcome(
+            int processedLinksCount, List<PendingNotification> notifications, Map<Long, Set<URI>> failedLinksByChat) {
+        private static BatchOutcome empty() {
+            return new BatchOutcome(0, List.of(), Map.of());
         }
     }
 }
