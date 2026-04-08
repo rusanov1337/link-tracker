@@ -55,15 +55,11 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public Optional<TrackedLink> findById(long id) {
-        return jdbcClient
-                .sql("""
+        return jdbcClient.sql("""
                     select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     where id = :id
-                    """)
-                .param("id", id)
-                .query(trackedLinkRowMapper)
-                .optional();
+                    """).param("id", id).query(trackedLinkRowMapper).optional();
     }
 
     @Override
@@ -86,8 +82,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
             return List.of();
         }
 
-        return jdbcClient
-                .sql("""
+        return jdbcClient.sql("""
                     select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                     from links
                     where id in (:ids)
@@ -167,11 +162,16 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                     where id = :id
                     """)
                 .param("id", trackedLink.id())
-                .param("url", SupportedLinkCanonicalizer.canonicalize(trackedLink.url()).toString())
+                .param(
+                        "url",
+                        SupportedLinkCanonicalizer.canonicalize(trackedLink.url())
+                                .toString())
                 .param("createdAt", Timestamp.from(trackedLink.createdAt()))
                 .param("lastCheckedAt", Timestamp.from(trackedLink.lastCheckedAt()))
                 .param("lastUpdatedAt", Timestamp.from(trackedLink.lastUpdatedAt()))
-                .param("lastEventAt", trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()))
+                .param(
+                        "lastEventAt",
+                        trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()))
                 .param("lastEventCursor", trackedLink.lastEventCursor())
                 .update();
         if (updatedRows == 0) {
@@ -181,7 +181,11 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public boolean delete(long id) {
-        return jdbcClient.sql("delete from links where id = :id").param("id", id).update() == 1;
+        return jdbcClient
+                        .sql("delete from links where id = :id")
+                        .param("id", id)
+                        .update()
+                == 1;
     }
 
     @Override

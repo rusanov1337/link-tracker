@@ -123,11 +123,21 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
 
     @Test
     void checkUpdatesDoesNotDuplicateNotificationWhenCalledConcurrently() throws Exception {
-        stubFor(get(urlEqualTo("/repos/octocat/hello-world"))
+        stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .withQueryParam("state", containing("all"))
+                .withQueryParam("sort", containing("created"))
+                .withQueryParam("direction", containing("desc"))
+                .withQueryParam("per_page", containing("100"))
                 .willReturn(aResponse().withStatus(200).withFixedDelay(200).withBody("""
-                                {
-                                  "updated_at": "2099-01-01T00:00:00Z"
-                                }
+                                [
+                                  {
+                                    "id": 101,
+                                    "title": "New issue",
+                                    "created_at": "2099-01-01T00:00:00Z",
+                                    "body_text": "Issue preview",
+                                    "user": { "login": "octocat" }
+                                  }
+                                ]
                                 """)));
         stubFor(post(urlEqualTo("/updates")).willReturn(aResponse().withStatus(200)));
 

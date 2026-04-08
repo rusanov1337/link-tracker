@@ -71,8 +71,7 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     public List<TrackedLink> lockNextPageToCheck(Instant checkedBefore, int limit) {
         @SuppressWarnings("unchecked")
         var rows = (List<Object[]>) entityManager
-                .createNativeQuery(
-                        """
+                .createNativeQuery("""
                         select id, url, created_at, last_checked_at, last_updated_at, last_event_at, last_event_cursor
                         from links
                         where last_checked_at < :checkedBefore
@@ -89,15 +88,13 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     @Override
     public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
         return entityManager
-                .createQuery(
-                        """
+                .createQuery("""
                         select l
                         from LinkEntity l
                         where l.lastCheckedAt <= :checkedBefore
                           and l.id > :afterId
                         order by l.id
-                        """,
-                        LinkEntity.class)
+                        """, LinkEntity.class)
                 .setParameter("checkedBefore", checkedBefore)
                 .setParameter("afterId", afterId)
                 .setMaxResults(limit)
@@ -155,7 +152,9 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public long count() {
-        return entityManager.createQuery("select count(l) from LinkEntity l", Long.class).getSingleResult();
+        return entityManager
+                .createQuery("select count(l) from LinkEntity l", Long.class)
+                .getSingleResult();
     }
 
     private Optional<LinkEntity> findEntityByUrl(URI canonicalUrl) {

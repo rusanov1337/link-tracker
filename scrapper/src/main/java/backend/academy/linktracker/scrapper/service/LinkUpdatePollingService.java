@@ -247,7 +247,9 @@ public class LinkUpdatePollingService {
 
     private void recordFailedLink(TrackedLink trackedLink, Map<Long, Set<URI>> failedLinksByChat) {
         for (var chatId : findSubscriberChatIds(trackedLink.id())) {
-            failedLinksByChat.computeIfAbsent(chatId, ignored -> ConcurrentHashMap.newKeySet()).add(trackedLink.url());
+            failedLinksByChat
+                    .computeIfAbsent(chatId, ignored -> ConcurrentHashMap.newKeySet())
+                    .add(trackedLink.url());
         }
     }
 
@@ -291,7 +293,10 @@ public class LinkUpdatePollingService {
     }
 
     private record FetchedLinkState(
-            TrackedLink trackedLink, boolean hasSupportedClient, LinkCheckResult checkResult, RuntimeException failure) {
+            TrackedLink trackedLink,
+            boolean hasSupportedClient,
+            LinkCheckResult checkResult,
+            RuntimeException failure) {
 
         private static FetchedLinkState noSupportedClient(TrackedLink trackedLink) {
             return new FetchedLinkState(trackedLink, false, null, null);
