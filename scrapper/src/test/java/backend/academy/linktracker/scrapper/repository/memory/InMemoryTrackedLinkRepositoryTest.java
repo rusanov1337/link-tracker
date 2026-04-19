@@ -159,6 +159,57 @@ class InMemoryTrackedLinkRepositoryTest {
     }
 
     @Test
+    void claimNextPageToCheckSkipsActiveLeaseAndAllowsExpiredLease() {
+        var first = repository.create(
+                URI.create("https://github.com/org/claim-one"), Instant.parse("2026-03-06T10:00:00Z"));
+        var second = repository.create(
+                URI.create("https://github.com/org/claim-two"), Instant.parse("2026-03-06T10:00:01Z"));
+        var checkedBefore = Instant.parse("2026-03-06T10:00:30Z");
+        var claimedAt = Instant.parse("2026-03-06T10:01:00Z");
+        var processingUntil = Instant.parse("2026-03-06T10:06:00Z");
+
+        var firstClaim = repository.claimNextPageToCheck(checkedBefore, "owner-1", claimedAt, processingUntil, 1);
+        var secondClaim = repository.claimNextPageToCheck(checkedBefore, "owner-2", claimedAt, processingUntil, 2);
+        var expiredClaim = repository.claimNextPageToCheck(
+                checkedBefore, "owner-3", processingUntil.plusSeconds(1), processingUntil.plusSeconds(60), 2);
+
+        assertEquals(
+                List.of(first.id()), firstClaim.stream().map(TrackedLink::id).toList());
+        assertEquals(
+                List.of(second.id()), secondClaim.stream().map(TrackedLink::id).toList());
+        assertEquals(
+                List.of(first.id(), second.id()),
+                expiredClaim.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
+    void updateIfProcessingOwnerAppliesOnlyOwnedLease() {
+        var trackedLink =
+                repository.create(URI.create("https://github.com/org/owned"), Instant.parse("2026-03-06T10:00:00Z"));
+        var claimed = repository
+                .claimNextPageToCheck(
+                        Instant.parse("2026-03-06T10:00:30Z"),
+                        "owner-1",
+                        Instant.parse("2026-03-06T10:01:00Z"),
+                        Instant.parse("2026-03-06T10:06:00Z"),
+                        1)
+                .getFirst();
+        var updated = claimed.withLastCheckedAt(Instant.parse("2026-03-06T10:02:00Z"));
+
+        assertFalse(repository.updateIfProcessingOwner(updated, "owner-2"));
+        assertEquals(
+                trackedLink.lastCheckedAt(),
+                repository.findById(trackedLink.id()).orElseThrow().lastCheckedAt());
+
+        assertTrue(repository.updateIfProcessingOwner(updated, "owner-1"));
+        assertEquals(
+                updated.lastCheckedAt(),
+                repository.findById(trackedLink.id()).orElseThrow().lastCheckedAt());
+        assertFalse(repository.updateIfProcessingOwner(
+                updated.withLastCheckedAt(Instant.parse("2026-03-06T10:03:00Z")), "owner-1"));
+    }
+
+    @Test
     void updateMissingEntityFailsFast() {
         var link = TrackedLink.create(999L, URI.create("https://example.com"), Instant.now());
         assertThrows(IllegalArgumentException.class, () -> repository.update(link));

@@ -118,6 +118,21 @@ public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSu
     }
 
     @Test
+    void trackedLinkDeleteIfNoSubscriptionsKeepsSubscribedLink() {
+        assertTrue(chatRepository.add(1L));
+        var trackedLink = trackedLinkRepository.create(
+                URI.create("https://github.com/org/subscribed"), Instant.parse("2026-03-22T10:00:00Z"));
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(1L, trackedLink.id(), List.of(), List.of())));
+
+        assertFalse(trackedLinkRepository.deleteIfNoSubscriptions(trackedLink.id()));
+        assertTrue(trackedLinkRepository.findById(trackedLink.id()).isPresent());
+
+        assertTrue(linkSubscriptionRepository.remove(1L, trackedLink.id()));
+        assertTrue(trackedLinkRepository.deleteIfNoSubscriptions(trackedLink.id()));
+        assertFalse(trackedLinkRepository.findById(trackedLink.id()).isPresent());
+    }
+
+    @Test
     void trackedLinkPageToCheckReturnsStableBatch() {
         var first = trackedLinkRepository.create(
                 URI.create("https://github.com/org/one"), Instant.parse("2026-03-22T10:00:00Z"));
@@ -156,6 +171,59 @@ public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSu
     }
 
     @Test
+    void trackedLinkClaimSkipsActiveLeaseAndAllowsExpiredLease() {
+        var first = trackedLinkRepository.create(
+                URI.create("https://github.com/org/claim-one"), Instant.parse("2026-03-22T10:00:00Z"));
+        var second = trackedLinkRepository.create(
+                URI.create("https://github.com/org/claim-two"), Instant.parse("2026-03-22T10:00:01Z"));
+        var checkedBefore = Instant.parse("2026-03-22T10:00:30Z");
+        var claimedAt = Instant.parse("2026-03-22T10:01:00Z");
+        var processingUntil = Instant.parse("2026-03-22T10:06:00Z");
+
+        var firstClaim =
+                trackedLinkRepository.claimNextPageToCheck(checkedBefore, "owner-1", claimedAt, processingUntil, 1);
+        var secondClaim =
+                trackedLinkRepository.claimNextPageToCheck(checkedBefore, "owner-2", claimedAt, processingUntil, 2);
+        var expiredClaim = trackedLinkRepository.claimNextPageToCheck(
+                checkedBefore, "owner-3", processingUntil.plusSeconds(1), processingUntil.plusSeconds(60), 2);
+
+        assertEquals(
+                List.of(first.id()), firstClaim.stream().map(TrackedLink::id).toList());
+        assertEquals(
+                List.of(second.id()), secondClaim.stream().map(TrackedLink::id).toList());
+        assertEquals(
+                List.of(first.id(), second.id()),
+                expiredClaim.stream().map(TrackedLink::id).toList());
+    }
+
+    @Test
+    void trackedLinkUpdateIfProcessingOwnerAppliesOnlyOwnedLease() {
+        var trackedLink = trackedLinkRepository.create(
+                URI.create("https://github.com/org/owned"), Instant.parse("2026-03-22T10:00:00Z"));
+        var claimed = trackedLinkRepository
+                .claimNextPageToCheck(
+                        Instant.parse("2026-03-22T10:00:30Z"),
+                        "owner-1",
+                        Instant.parse("2026-03-22T10:01:00Z"),
+                        Instant.parse("2026-03-22T10:06:00Z"),
+                        1)
+                .getFirst();
+        var updated = claimed.withLastCheckedAt(Instant.parse("2026-03-22T10:02:00Z"));
+
+        assertFalse(trackedLinkRepository.updateIfProcessingOwner(updated, "owner-2"));
+        assertEquals(
+                trackedLink.lastCheckedAt(),
+                trackedLinkRepository.findById(trackedLink.id()).orElseThrow().lastCheckedAt());
+
+        assertTrue(trackedLinkRepository.updateIfProcessingOwner(updated, "owner-1"));
+        assertEquals(
+                updated.lastCheckedAt(),
+                trackedLinkRepository.findById(trackedLink.id()).orElseThrow().lastCheckedAt());
+        assertFalse(trackedLinkRepository.updateIfProcessingOwner(
+                updated.withLastCheckedAt(Instant.parse("2026-03-22T10:03:00Z")), "owner-1"));
+    }
+
+    @Test
     void subscriptionCrudPersistsTagsAndFilters() {
         assertTrue(chatRepository.add(1L));
         var trackedLink = trackedLinkRepository.create(
@@ -176,11 +244,34 @@ public abstract class RepositoryIntegrationTestSupport extends DatabaseCleanupSu
         assertEquals(1, linkSubscriptionRepository.findByChatId(1L).size());
         assertEquals(
                 1, linkSubscriptionRepository.findByLinkId(trackedLink.id()).size());
+        assertTrue(linkSubscriptionRepository.existsByLinkId(trackedLink.id()));
         assertEquals(1, linkSubscriptionRepository.count());
 
         assertTrue(linkSubscriptionRepository.remove(1L, trackedLink.id()));
         assertFalse(linkSubscriptionRepository.exists(1L, trackedLink.id()));
+        assertFalse(linkSubscriptionRepository.existsByLinkId(trackedLink.id()));
         assertFalse(linkSubscriptionRepository.remove(1L, trackedLink.id()));
+    }
+
+    @Test
+    void subscriptionFindChatIdsByLinkIdsReturnsGroupedSubscribers() {
+        assertTrue(chatRepository.add(1L));
+        assertTrue(chatRepository.add(2L));
+        assertTrue(chatRepository.add(3L));
+        var firstLink = trackedLinkRepository.create(URI.create("https://github.com/org/one"), Instant.now());
+        var secondLink = trackedLinkRepository.create(URI.create("https://github.com/org/two"), Instant.now());
+
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(1L, firstLink.id(), List.of("a"), List.of())));
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(2L, firstLink.id(), List.of("b"), List.of())));
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(3L, firstLink.id(), List.of("c"), List.of())));
+        assertTrue(linkSubscriptionRepository.add(new LinkSubscription(1L, secondLink.id(), List.of("d"), List.of())));
+
+        var chatIdsByLinkId =
+                linkSubscriptionRepository.findChatIdsByLinkIds(List.of(secondLink.id(), 999L, firstLink.id()));
+
+        assertEquals(List.of(1L, 2L, 3L), chatIdsByLinkId.get(firstLink.id()));
+        assertEquals(List.of(1L), chatIdsByLinkId.get(secondLink.id()));
+        assertFalse(chatIdsByLinkId.containsKey(999L));
     }
 
     @Test

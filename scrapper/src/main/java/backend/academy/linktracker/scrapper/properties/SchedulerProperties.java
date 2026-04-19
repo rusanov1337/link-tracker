@@ -31,4 +31,7 @@ public class SchedulerProperties {
 
     @Min(1)
     private int parallelism = 1;
+
+    @DurationUnit(ChronoUnit.MILLIS)
+    private Duration processingLease = Duration.ofMinutes(5);
 }

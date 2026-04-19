@@ -18,6 +18,7 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     private final AtomicLong idSequence = new AtomicLong(0);
     private final ConcurrentMap<Long, TrackedLink> linksById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Long> idsByUrl = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, ProcessingLease> processingLeasesByLinkId = new ConcurrentHashMap<>();
 
     @Override
     public synchronized TrackedLink create(URI url, Instant now) {
@@ -73,6 +74,21 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public synchronized List<TrackedLink> claimNextPageToCheck(
+            Instant checkedBefore, String processingOwner, Instant claimedAt, Instant processingUntil, int limit) {
+        var claimedLinks = linksById.values().stream()
+                .filter(link -> link.lastCheckedAt().isBefore(checkedBefore))
+                .filter(link -> isClaimable(link.id(), claimedAt))
+                .sorted(Comparator.comparingLong(TrackedLink::id))
+                .limit(limit)
+                .toList();
+        for (var link : claimedLinks) {
+            processingLeasesByLinkId.put(link.id(), new ProcessingLease(processingOwner, processingUntil));
+        }
+        return List.copyOf(claimedLinks);
+    }
+
+    @Override
     public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
         return linksById.values().stream()
                 .filter(link -> !link.lastCheckedAt().isAfter(checkedBefore))
@@ -119,6 +135,18 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public synchronized boolean updateIfProcessingOwner(TrackedLink trackedLink, String processingOwner) {
+        var lease = processingLeasesByLinkId.get(trackedLink.id());
+        if (lease == null || !lease.owner().equals(processingOwner)) {
+            return false;
+        }
+
+        update(trackedLink);
+        processingLeasesByLinkId.remove(trackedLink.id());
+        return true;
+    }
+
+    @Override
     public synchronized boolean delete(long id) {
         var removed = linksById.remove(id);
         if (removed == null) {
@@ -126,6 +154,7 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
         }
 
         idsByUrl.remove(urlKey(removed.url()));
+        processingLeasesByLinkId.remove(id);
         return true;
     }
 
@@ -141,4 +170,11 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
     private URI canonicalize(URI url) {
         return SupportedLinkCanonicalizer.canonicalize(url);
     }
+
+    private boolean isClaimable(long linkId, Instant claimedAt) {
+        var lease = processingLeasesByLinkId.get(linkId);
+        return lease == null || !lease.processingUntil().isAfter(claimedAt);
+    }
+
+    private record ProcessingLease(String owner, Instant processingUntil) {}
 }

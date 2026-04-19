@@ -2,9 +2,13 @@ package backend.academy.linktracker.scrapper.repository.memory;
 
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -52,6 +56,28 @@ public class InMemoryLinkSubscriptionRepository implements LinkSubscriptionRepos
                         .toList(),
                 limit,
                 offset);
+    }
+
+    @Override
+    public boolean existsByLinkId(long linkId) {
+        return subscriptionsByKey.values().stream().anyMatch(subscription -> subscription.linkId() == linkId);
+    }
+
+    @Override
+    public Map<Long, List<Long>> findChatIdsByLinkIds(List<Long> linkIds) {
+        if (linkIds.isEmpty()) {
+            return Map.of();
+        }
+
+        var requestedLinkIds = Set.copyOf(linkIds);
+        var grouped = new LinkedHashMap<Long, List<Long>>();
+        subscriptionsByKey.values().stream()
+                .filter(subscription -> requestedLinkIds.contains(subscription.linkId()))
+                .sorted(Comparator.comparingLong(LinkSubscription::linkId).thenComparingLong(LinkSubscription::chatId))
+                .forEach(subscription -> grouped.computeIfAbsent(subscription.linkId(), ignored -> new ArrayList<>())
+                        .add(subscription.chatId()));
+        grouped.replaceAll((ignored, chatIds) -> List.copyOf(chatIds));
+        return Map.copyOf(grouped);
     }
 
     @Override

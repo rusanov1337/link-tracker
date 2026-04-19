@@ -40,6 +40,12 @@ public class LinkEntity {
     @Column(name = "last_event_cursor")
     private String lastEventCursor;
 
+    @Column(name = "processing_owner")
+    private String processingOwner;
+
+    @Column(name = "processing_until")
+    private Instant processingUntil;
+
     public LinkEntity(
             Long id,
             String url,
@@ -48,6 +54,19 @@ public class LinkEntity {
             Instant lastUpdatedAt,
             Instant lastEventAt,
             String lastEventCursor) {
+        this(id, url, createdAt, lastCheckedAt, lastUpdatedAt, lastEventAt, lastEventCursor, null, null);
+    }
+
+    public LinkEntity(
+            Long id,
+            String url,
+            Instant createdAt,
+            Instant lastCheckedAt,
+            Instant lastUpdatedAt,
+            Instant lastEventAt,
+            String lastEventCursor,
+            String processingOwner,
+            Instant processingUntil) {
         this.id = id;
         this.url = url;
         this.createdAt = createdAt;
@@ -55,5 +74,7 @@ public class LinkEntity {
         this.lastUpdatedAt = lastUpdatedAt;
         this.lastEventAt = lastEventAt;
         this.lastEventCursor = lastEventCursor;
+        this.processingOwner = processingOwner;
+        this.processingUntil = processingUntil;
     }
 }

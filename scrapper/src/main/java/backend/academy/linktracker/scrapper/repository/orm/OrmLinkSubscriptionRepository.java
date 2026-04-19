@@ -13,6 +13,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -97,6 +98,34 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
                 .setMaxResults(limit)
                 .getResultList();
         return hydrateSubscriptions(entities, findTagValues(toKeys(entities)), findFilterValues(toKeys(entities)));
+    }
+
+    @Override
+    public boolean existsByLinkId(long linkId) {
+        return entityManager
+                        .createQuery(
+                                "select count(s) from SubscriptionEntity s where s.id.linkId = :linkId", Long.class)
+                        .setParameter("linkId", linkId)
+                        .getSingleResult()
+                > 0;
+    }
+
+    @Override
+    public Map<Long, List<Long>> findChatIdsByLinkIds(List<Long> linkIds) {
+        if (linkIds.isEmpty()) {
+            return Map.of();
+        }
+
+        var rows = entityManager
+                .createQuery("""
+                    select s.id.linkId, s.id.chatId
+                    from SubscriptionEntity s
+                    where s.id.linkId in :linkIds
+                    order by s.id.linkId, s.id.chatId
+                    """, Object[].class)
+                .setParameter("linkIds", linkIds)
+                .getResultList();
+        return groupSubscriberChatIds(rows);
     }
 
     @Override
@@ -243,6 +272,17 @@ public class OrmLinkSubscriptionRepository implements LinkSubscriptionRepository
 
     private Map<SubscriptionKey, List<String>> groupValues(List<SubscriptionValue> values) {
         return SubscriptionRepositorySupport.groupValues(values, SubscriptionValue::key, SubscriptionValue::value);
+    }
+
+    private Map<Long, List<Long>> groupSubscriberChatIds(List<Object[]> rows) {
+        var grouped = new LinkedHashMap<Long, List<Long>>();
+        for (var row : rows) {
+            var linkId = ((Number) row[0]).longValue();
+            var chatId = ((Number) row[1]).longValue();
+            grouped.computeIfAbsent(linkId, ignored -> new ArrayList<>()).add(chatId);
+        }
+        grouped.replaceAll((ignored, chatIds) -> List.copyOf(chatIds));
+        return Map.copyOf(grouped);
     }
 
     private SubscriptionValue mapValue(Object[] row) {

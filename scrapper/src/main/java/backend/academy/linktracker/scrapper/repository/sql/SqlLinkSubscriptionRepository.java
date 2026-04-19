@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -114,6 +115,35 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
     public List<LinkSubscription> findByLinkId(long linkId, int limit, int offset) {
         var keys = findKeysByLinkId(linkId, limit, offset);
         return hydrateSubscriptions(keys, findTagValues(keys), findFilterValues(keys));
+    }
+
+    @Override
+    public boolean existsByLinkId(long linkId) {
+        return jdbcClient.sql("""
+                    select exists(
+                        select 1 from subscriptions where link_id = :linkId
+                    )
+                    """).param("linkId", linkId).query(Boolean.class).single();
+    }
+
+    @Override
+    public Map<Long, List<Long>> findChatIdsByLinkIds(List<Long> linkIds) {
+        if (linkIds.isEmpty()) {
+            return Map.of();
+        }
+
+        var rows = jdbcClient
+                .sql("""
+                    select link_id, chat_id
+                    from subscriptions
+                    where link_id in (:linkIds)
+                    order by link_id, chat_id
+                    """)
+                .param("linkIds", linkIds)
+                .query((resultSet, rowNum) ->
+                        new LinkSubscriber(resultSet.getLong("link_id"), resultSet.getLong("chat_id")))
+                .list();
+        return groupSubscriberChatIds(rows);
     }
 
     @Override
@@ -274,6 +304,15 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
         return SubscriptionRepositorySupport.groupValues(values, SubscriptionValue::key, SubscriptionValue::value);
     }
 
+    private Map<Long, List<Long>> groupSubscriberChatIds(List<LinkSubscriber> rows) {
+        var grouped = new LinkedHashMap<Long, List<Long>>();
+        for (var row : rows) {
+            grouped.computeIfAbsent(row.linkId(), ignored -> new ArrayList<>()).add(row.chatId());
+        }
+        grouped.replaceAll((ignored, chatIds) -> List.copyOf(chatIds));
+        return Map.copyOf(grouped);
+    }
+
     private RowMapper<SubscriptionValue> valueRowMapper(String columnName) {
         return (resultSet, rowNum) -> new SubscriptionValue(
                 new SubscriptionKey(resultSet.getLong("chat_id"), resultSet.getLong("link_id")),
@@ -322,4 +361,6 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
     private record SubscriptionKey(long chatId, long linkId) {}
 
     private record SubscriptionValue(SubscriptionKey key, String value) {}
+
+    private record LinkSubscriber(long linkId, long chatId) {}
 }

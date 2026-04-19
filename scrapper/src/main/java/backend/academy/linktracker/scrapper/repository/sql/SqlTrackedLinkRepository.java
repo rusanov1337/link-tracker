@@ -8,7 +8,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.RowMapper;
@@ -109,6 +111,43 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    @Transactional
+    public List<TrackedLink> claimNextPageToCheck(
+            Instant checkedBefore, String processingOwner, Instant claimedAt, Instant processingUntil, int limit) {
+        return jdbcClient
+                .sql("""
+                    with claimed as (
+                        select id
+                        from links
+                        where last_checked_at < :checkedBefore
+                          and (processing_until is null or processing_until <= :claimedAt)
+                        order by id
+                        for update skip locked
+                        limit :limit
+                    )
+                    update links
+                    set processing_owner = :processingOwner,
+                        processing_until = :processingUntil
+                    from claimed
+                    where links.id = claimed.id
+                    returning links.id,
+                              links.url,
+                              links.created_at,
+                              links.last_checked_at,
+                              links.last_updated_at,
+                              links.last_event_at,
+                              links.last_event_cursor
+                    """)
+                .param("checkedBefore", Timestamp.from(checkedBefore))
+                .param("claimedAt", Timestamp.from(claimedAt))
+                .param("processingOwner", processingOwner)
+                .param("processingUntil", Timestamp.from(processingUntil))
+                .param("limit", limit)
+                .query(trackedLinkRowMapper)
+                .list();
+    }
+
+    @Override
     public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
         return jdbcClient
                 .sql("""
@@ -150,8 +189,8 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public void update(TrackedLink trackedLink) {
-        var updatedRows = jdbcClient
-                .sql("""
+        var updatedRows =
+                jdbcClient.sql("""
                     update links
                     set url = :url,
                         created_at = :createdAt,
@@ -160,23 +199,31 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                         last_event_at = :lastEventAt,
                         last_event_cursor = :lastEventCursor
                     where id = :id
-                    """)
-                .param("id", trackedLink.id())
-                .param(
-                        "url",
-                        SupportedLinkCanonicalizer.canonicalize(trackedLink.url())
-                                .toString())
-                .param("createdAt", Timestamp.from(trackedLink.createdAt()))
-                .param("lastCheckedAt", Timestamp.from(trackedLink.lastCheckedAt()))
-                .param("lastUpdatedAt", Timestamp.from(trackedLink.lastUpdatedAt()))
-                .param(
-                        "lastEventAt",
-                        trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()))
-                .param("lastEventCursor", trackedLink.lastEventCursor())
-                .update();
+                    """).params(trackedLinkParameters(trackedLink)).update();
         if (updatedRows == 0) {
             throw new IllegalArgumentException("Tracked link does not exist: " + trackedLink.id());
         }
+    }
+
+    @Override
+    public boolean updateIfProcessingOwner(TrackedLink trackedLink, String processingOwner) {
+        return jdbcClient
+                        .sql("""
+                    update links
+                    set url = :url,
+                        created_at = :createdAt,
+                        last_checked_at = :lastCheckedAt,
+                        last_updated_at = :lastUpdatedAt,
+                        last_event_at = :lastEventAt,
+                        last_event_cursor = :lastEventCursor,
+                        processing_owner = null,
+                        processing_until = null
+                    where id = :id and processing_owner = :processingOwner
+                    """)
+                        .params(trackedLinkParameters(trackedLink))
+                        .param("processingOwner", processingOwner)
+                        .update()
+                == 1;
     }
 
     @Override
@@ -186,6 +233,19 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                         .param("id", id)
                         .update()
                 == 1;
+    }
+
+    @Override
+    public boolean deleteIfNoSubscriptions(long id) {
+        return jdbcClient.sql("""
+                    delete from links
+                    where id = :id
+                      and not exists (
+                          select 1
+                          from subscriptions
+                          where link_id = :id
+                      )
+                    """).param("id", id).update() == 1;
     }
 
     @Override
@@ -202,6 +262,21 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
                 resultSet.getTimestamp("last_updated_at").toInstant(),
                 toInstant(resultSet, "last_event_at"),
                 resultSet.getString("last_event_cursor"));
+    }
+
+    private Map<String, Object> trackedLinkParameters(TrackedLink trackedLink) {
+        var parameters = new HashMap<String, Object>();
+        parameters.put("id", trackedLink.id());
+        parameters.put(
+                "url",
+                SupportedLinkCanonicalizer.canonicalize(trackedLink.url()).toString());
+        parameters.put("createdAt", Timestamp.from(trackedLink.createdAt()));
+        parameters.put("lastCheckedAt", Timestamp.from(trackedLink.lastCheckedAt()));
+        parameters.put("lastUpdatedAt", Timestamp.from(trackedLink.lastUpdatedAt()));
+        parameters.put(
+                "lastEventAt", trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()));
+        parameters.put("lastEventCursor", trackedLink.lastEventCursor());
+        return parameters;
     }
 
     private Instant toInstant(ResultSet resultSet, String column) throws SQLException {

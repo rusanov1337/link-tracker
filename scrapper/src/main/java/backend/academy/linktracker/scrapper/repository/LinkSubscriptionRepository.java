@@ -2,6 +2,7 @@ package backend.academy.linktracker.scrapper.repository;
 
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface LinkSubscriptionRepository {
@@ -27,6 +28,12 @@ public interface LinkSubscriptionRepository {
     }
 
     List<LinkSubscription> findByLinkId(long linkId, int limit, int offset);
+
+    default boolean existsByLinkId(long linkId) {
+        return !findByLinkId(linkId, 1, 0).isEmpty();
+    }
+
+    Map<Long, List<Long>> findChatIdsByLinkIds(List<Long> linkIds);
 
     default List<LinkSubscription> findAll() {
         return findAll(UNBOUNDED_PAGE_SIZE, 0);

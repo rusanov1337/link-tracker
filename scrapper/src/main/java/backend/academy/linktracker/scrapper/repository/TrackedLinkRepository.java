@@ -20,6 +20,9 @@ public interface TrackedLinkRepository {
 
     List<TrackedLink> lockNextPageToCheck(Instant checkedBefore, int limit);
 
+    List<TrackedLink> claimNextPageToCheck(
+            Instant checkedBefore, String processingOwner, Instant claimedAt, Instant processingUntil, int limit);
+
     List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit);
 
     default List<TrackedLink> findAll() {
@@ -30,7 +33,13 @@ public interface TrackedLinkRepository {
 
     void update(TrackedLink trackedLink);
 
+    boolean updateIfProcessingOwner(TrackedLink trackedLink, String processingOwner);
+
     boolean delete(long id);
+
+    default boolean deleteIfNoSubscriptions(long id) {
+        return delete(id);
+    }
 
     long count();
 }

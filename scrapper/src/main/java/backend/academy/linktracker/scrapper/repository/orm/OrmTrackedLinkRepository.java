@@ -86,6 +86,43 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public List<TrackedLink> claimNextPageToCheck(
+            Instant checkedBefore, String processingOwner, Instant claimedAt, Instant processingUntil, int limit) {
+        @SuppressWarnings("unchecked")
+        var rows = (List<Object[]>) entityManager
+                .createNativeQuery("""
+                        with claimed as (
+                            select id
+                            from links
+                            where last_checked_at < :checkedBefore
+                              and (processing_until is null or processing_until <= :claimedAt)
+                            order by id
+                            for update skip locked
+                            limit :limit
+                        )
+                        update links
+                        set processing_owner = :processingOwner,
+                            processing_until = :processingUntil
+                        from claimed
+                        where links.id = claimed.id
+                        returning links.id,
+                                  links.url,
+                                  links.created_at,
+                                  links.last_checked_at,
+                                  links.last_updated_at,
+                                  links.last_event_at,
+                                  links.last_event_cursor
+                        """)
+                .setParameter("checkedBefore", Timestamp.from(checkedBefore))
+                .setParameter("claimedAt", Timestamp.from(claimedAt))
+                .setParameter("processingOwner", processingOwner)
+                .setParameter("processingUntil", Timestamp.from(processingUntil))
+                .setParameter("limit", limit)
+                .getResultList();
+        return rows.stream().map(this::mapTrackedLink).toList();
+    }
+
+    @Override
     public List<TrackedLink> findPageToCheck(Instant checkedBefore, long afterId, int limit) {
         return entityManager
                 .createQuery("""
@@ -139,6 +176,38 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     @Override
+    public boolean updateIfProcessingOwner(TrackedLink trackedLink, String processingOwner) {
+        return entityManager
+                        .createNativeQuery("""
+                        update links
+                        set url = :url,
+                            created_at = :createdAt,
+                            last_checked_at = :lastCheckedAt,
+                            last_updated_at = :lastUpdatedAt,
+                            last_event_at = :lastEventAt,
+                            last_event_cursor = :lastEventCursor,
+                            processing_owner = null,
+                            processing_until = null
+                        where id = :id and processing_owner = :processingOwner
+                        """)
+                        .setParameter("id", trackedLink.id())
+                        .setParameter(
+                                "url",
+                                SupportedLinkCanonicalizer.canonicalize(trackedLink.url())
+                                        .toString())
+                        .setParameter("createdAt", Timestamp.from(trackedLink.createdAt()))
+                        .setParameter("lastCheckedAt", Timestamp.from(trackedLink.lastCheckedAt()))
+                        .setParameter("lastUpdatedAt", Timestamp.from(trackedLink.lastUpdatedAt()))
+                        .setParameter(
+                                "lastEventAt",
+                                trackedLink.lastEventAt() == null ? null : Timestamp.from(trackedLink.lastEventAt()))
+                        .setParameter("lastEventCursor", trackedLink.lastEventCursor())
+                        .setParameter("processingOwner", processingOwner)
+                        .executeUpdate()
+                == 1;
+    }
+
+    @Override
     public boolean delete(long id) {
         var entity = entityManager.find(LinkEntity.class, id);
         if (entity == null) {
@@ -148,6 +217,19 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
         entityManager.remove(entity);
         entityManager.flush();
         return true;
+    }
+
+    @Override
+    public boolean deleteIfNoSubscriptions(long id) {
+        return entityManager.createNativeQuery("""
+                        delete from links
+                        where id = :id
+                          and not exists (
+                              select 1
+                              from subscriptions
+                              where link_id = :id
+                          )
+                        """).setParameter("id", id).executeUpdate() == 1;
     }
 
     @Override

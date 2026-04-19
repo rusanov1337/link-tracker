@@ -9,7 +9,6 @@ import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.DetectedUpdate;
 import backend.academy.linktracker.scrapper.domain.LinkCheckResult;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
-import backend.academy.linktracker.scrapper.properties.DatabaseProperties;
 import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryLinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryTrackedLinkRepository;
@@ -337,18 +336,16 @@ class LinkUpdatePollingServiceTest {
         var schedulerProperties = new SchedulerProperties();
         schedulerProperties.setBatchSize(batchSize);
         schedulerProperties.setParallelism(parallelism);
-        var databaseProperties = new DatabaseProperties();
-        databaseProperties.setPageSize(1);
         var pendingFailureReportStore = new PendingProcessingFailureReportStore();
+        var fetchService = new LinkUpdateFetchService(externalClients, schedulerProperties);
+        var notificationDispatcher = new LinkUpdateNotificationDispatcher(
+                botClient, linkUpdateDescriptionFormatter, pendingFailureReportStore);
         return new LinkUpdatePollingService(
                 trackedLinkRepository,
                 linkSubscriptionRepository,
-                externalClients,
-                botClient,
-                linkUpdateDescriptionFormatter,
+                fetchService,
+                notificationDispatcher,
                 schedulerProperties,
-                databaseProperties,
-                pendingFailureReportStore,
                 new NoOpTransactionManager());
     }
 

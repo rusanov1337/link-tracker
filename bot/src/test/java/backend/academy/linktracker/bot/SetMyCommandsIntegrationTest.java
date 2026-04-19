@@ -10,6 +10,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.awaitility.Awaitility.await;
 
 import backend.academy.linktracker.bot.service.TelegramCommandMenuRegistrar;
+import backend.academy.linktracker.bot.service.command.CommandRegistry;
+import com.pengrad.telegrambot.TelegramBot;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,11 +26,14 @@ import org.wiremock.spring.EnableWireMock;
 @SpringBootTest
 @ActiveProfiles("test")
 @EnableWireMock
-@TestPropertySource(properties = {"app.telegram.polling-enabled=true", "app.telegram.set-my-commands-enabled=true"})
+@TestPropertySource(properties = {"app.telegram.polling-enabled=false", "app.telegram.set-my-commands-enabled=false"})
 class SetMyCommandsIntegrationTest {
 
     @Autowired
-    private TelegramCommandMenuRegistrar telegramCommandMenuRegistrar;
+    private TelegramBot telegramBot;
+
+    @Autowired
+    private CommandRegistry commandRegistry;
 
     @Test
     void botRegistersCommandsInTelegramMenuOnStartup() {
@@ -54,6 +59,7 @@ class SetMyCommandsIntegrationTest {
                                 }
                                 """)));
 
+        var telegramCommandMenuRegistrar = new TelegramCommandMenuRegistrar(telegramBot, commandRegistry);
         ReflectionTestUtils.invokeMethod(telegramCommandMenuRegistrar, "registerCommands");
 
         await().atMost(Duration.ofSeconds(10))

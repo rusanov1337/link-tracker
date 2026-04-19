@@ -48,6 +48,21 @@ class InMemoryLinkSubscriptionRepositoryTest {
         assertEquals(2, byLink.size());
         assertEquals(1L, byLink.get(0).chatId());
         assertEquals(2L, byLink.get(1).chatId());
+        assertTrue(repository.existsByLinkId(200L));
+        assertFalse(repository.existsByLinkId(999L));
+    }
+
+    @Test
+    void findChatIdsByLinkIdsReturnsGroupedSubscribers() {
+        repository.add(new LinkSubscription(2L, 200L, List.of("b"), List.of()));
+        repository.add(new LinkSubscription(1L, 200L, List.of("a"), List.of()));
+        repository.add(new LinkSubscription(1L, 201L, List.of("c"), List.of()));
+
+        var chatIdsByLinkId = repository.findChatIdsByLinkIds(List.of(201L, 999L, 200L));
+
+        assertEquals(List.of(1L, 2L), chatIdsByLinkId.get(200L));
+        assertEquals(List.of(1L), chatIdsByLinkId.get(201L));
+        assertFalse(chatIdsByLinkId.containsKey(999L));
     }
 
     @Test

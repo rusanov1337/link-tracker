@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.commons.text.StringEscapeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -164,8 +165,7 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
             return List.of();
         }
 
-        var encodedAnswerIds =
-                answerIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(";"));
+        var encodedAnswerIds = answerIds.stream().map(String::valueOf).collect(Collectors.joining(";"));
         var responseBody = executeGet("/2.3/answers/{id}/comments", encodedAnswerIds, true);
         return parseCommentEvents(responseBody, "answer-comment");
     }

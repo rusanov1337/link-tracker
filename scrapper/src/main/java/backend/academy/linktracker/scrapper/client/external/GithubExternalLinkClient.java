@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -87,16 +88,16 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
         }
     }
 
-    private java.util.Optional<OwnerRepo> extractOwnerAndRepo(URI url) {
+    private Optional<OwnerRepo> extractOwnerAndRepo(URI url) {
         var segments = Arrays.stream(url.getPath().split("/"))
                 .map(String::strip)
                 .filter(segment -> !segment.isEmpty())
                 .toList();
         if (segments.size() != 2) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
 
-        return java.util.Optional.of(new OwnerRepo(segments.getFirst(), segments.get(1)));
+        return Optional.of(new OwnerRepo(segments.getFirst(), segments.get(1)));
     }
 
     @SuppressWarnings("unchecked")
@@ -134,7 +135,7 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
                         event.preview(),
                         Long.toString(event.id())))
                 .toList();
-        return new LinkCheckResult(java.util.Optional.of(updates.getLast().cursor()), updates, false);
+        return new LinkCheckResult(Optional.of(updates.getLast().cursor()), updates, false);
     }
 
     private GithubEvent parseEvent(Map<String, Object> item) {

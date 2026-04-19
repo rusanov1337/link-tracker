@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -102,8 +103,7 @@ public class ScrapperLinkService {
                                     .distinct()
                                     .toList())
                             .stream()
-                            .collect(java.util.stream.Collectors.toMap(
-                                    trackedLink -> trackedLink.id(), Function.identity()));
+                            .collect(Collectors.toMap(trackedLink -> trackedLink.id(), Function.identity()));
 
             for (var subscription : subscriptions) {
                 var trackedLink = trackedLinksById.get(subscription.linkId());
@@ -195,8 +195,8 @@ public class ScrapperLinkService {
     }
 
     private void removeLinkIfOrphan(long linkId) {
-        if (linkSubscriptionRepository.findByLinkId(linkId, 1, 0).isEmpty()) {
-            trackedLinkRepository.delete(linkId);
+        if (!linkSubscriptionRepository.existsByLinkId(linkId)) {
+            trackedLinkRepository.deleteIfNoSubscriptions(linkId);
         }
     }
 
