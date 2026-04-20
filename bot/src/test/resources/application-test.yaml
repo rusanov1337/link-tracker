@@ -1,4 +1,7 @@
 app:
+  kafka:
+    consumer:
+      enabled: false
   telegram:
     url: ${wiremock.server.baseUrl}/bot
     token: test-token

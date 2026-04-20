@@ -3,6 +3,8 @@ package backend.academy.linktracker.scrapper.client.bot;
 import backend.academy.linktracker.scrapper.client.bot.dto.LinkUpdateRequest;
 import backend.academy.linktracker.scrapper.client.bot.dto.ProcessingFailureReportRequest;
 import backend.academy.linktracker.scrapper.properties.NotificationKafkaProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -14,12 +16,16 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "kafka", matchIfMissing = true)
 public class KafkaBotUpdatesClient implements BotUpdatesClient {
 
-    private final KafkaTemplate<Object, Object> kafkaTemplate;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final ObjectMapper objectMapper;
     private final NotificationKafkaProperties kafkaProperties;
 
     public KafkaBotUpdatesClient(
-            KafkaTemplate<Object, Object> kafkaTemplate, NotificationKafkaProperties kafkaProperties) {
+            KafkaTemplate<String, String> kafkaTemplate,
+            ObjectMapper objectMapper,
+            NotificationKafkaProperties kafkaProperties) {
         this.kafkaTemplate = kafkaTemplate;
+        this.objectMapper = objectMapper;
         this.kafkaProperties = kafkaProperties;
     }
 
@@ -37,7 +43,11 @@ public class KafkaBotUpdatesClient implements BotUpdatesClient {
 
     private void send(String topic, String key, Object payload) {
         try {
-            kafkaTemplate.send(topic, key, payload).get();
+            kafkaTemplate
+                    .send(topic, key, objectMapper.writeValueAsString(payload))
+                    .get();
+        } catch (JsonProcessingException exception) {
+            throw new BotUpdatesClientException("Kafka notification serialization failed", exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new BotUpdatesClientException("Kafka notification publishing was interrupted", exception);

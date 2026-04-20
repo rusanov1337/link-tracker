@@ -52,6 +52,8 @@ public class NotificationKafkaProperties {
     @NoArgsConstructor
     public static class Consumer {
 
+        private boolean enabled = true;
+
         @Positive
         private int maxAttempts = 3;
 

@@ -10,17 +10,13 @@ spring:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:link-tracker-bot}
       auto-offset-reset: earliest
       enable-auto-commit: false
-      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
-      properties:
-        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
-        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
-        spring.json.trusted.packages: backend.academy.linktracker.bot.api.dto
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
       acks: all
       retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
       ack-mode: record
 
@@ -32,6 +28,7 @@ app:
       processing-failure-reports: ${KAFKA_PROCESSING_FAILURE_REPORTS_TOPIC:processing-failure-reports}
       processing-failure-reports-dlq: ${KAFKA_PROCESSING_FAILURE_REPORTS_DLQ_TOPIC:processing-failure-reports-dlq}
     consumer:
+      enabled: ${KAFKA_CONSUMER_ENABLED:true}
       max-attempts: ${KAFKA_CONSUMER_MAX_ATTEMPTS:3}
       retry-backoff: ${KAFKA_CONSUMER_RETRY_BACKOFF:1s}
   grpc:

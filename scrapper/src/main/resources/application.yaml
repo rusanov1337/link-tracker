@@ -10,7 +10,7 @@ spring:
       acks: all
       retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   datasource:
     url: ${SCRAPPER_DB_URL:jdbc:postgresql://localhost:5432/link_tracker}
     username: ${SCRAPPER_DB_USERNAME:postgres}
