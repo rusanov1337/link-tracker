@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: scrapper
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
   datasource:
     url: ${SCRAPPER_DB_URL:jdbc:postgresql://localhost:5432/link_tracker}
     username: ${SCRAPPER_DB_USERNAME:postgres}
@@ -17,6 +24,15 @@ spring:
     enabled: true
 
 app:
+  kafka:
+    topics:
+      link-updates: ${KAFKA_LINK_UPDATES_TOPIC:link-updates}
+      link-updates-dlq: ${KAFKA_LINK_UPDATES_DLQ_TOPIC:link-updates-dlq}
+      processing-failure-reports: ${KAFKA_PROCESSING_FAILURE_REPORTS_TOPIC:processing-failure-reports}
+      processing-failure-reports-dlq: ${KAFKA_PROCESSING_FAILURE_REPORTS_DLQ_TOPIC:processing-failure-reports-dlq}
+    consumer:
+      max-attempts: ${KAFKA_CONSUMER_MAX_ATTEMPTS:3}
+      retry-backoff: ${KAFKA_CONSUMER_RETRY_BACKOFF:1s}
   database:
     access-type: ${SCRAPPER_DB_ACCESS_TYPE:SQL}
     page-size: ${SCRAPPER_DB_PAGE_SIZE:500}
