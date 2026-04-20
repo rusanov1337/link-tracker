@@ -42,7 +42,7 @@ app:
       port: ${SCRAPPER_GRPC_PORT:8091}
   bot:
     base-url: ${BOT_BASE_URL:http://localhost:8080}
-    transport: ${BOT_TRANSPORT:http}
+    transport: ${BOT_TRANSPORT:kafka}
     grpc:
       host: ${BOT_GRPC_HOST:localhost}
       port: ${BOT_GRPC_PORT:8090}

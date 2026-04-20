@@ -4,6 +4,7 @@ app:
     parallelism: 1
   bot:
     base-url: ${wiremock.server.baseUrl}
+    transport: http
   stackoverflow:
     base-url: ${wiremock.server.baseUrl}
     site: stackoverflow

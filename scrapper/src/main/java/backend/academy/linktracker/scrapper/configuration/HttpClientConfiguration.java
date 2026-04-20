@@ -32,7 +32,7 @@ public class HttpClientConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "http", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "http")
     public RestClient botRestClient(RestClient.Builder restClientBuilder, BotProperties botProperties) {
         return restClientBuilder
                 .baseUrl(botProperties.getBaseUrl())

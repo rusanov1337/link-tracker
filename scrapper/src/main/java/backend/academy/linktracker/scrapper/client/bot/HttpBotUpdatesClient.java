@@ -12,7 +12,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-@ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "http", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "http")
 public class HttpBotUpdatesClient implements BotUpdatesClient {
 
     private final RestClient restClient;

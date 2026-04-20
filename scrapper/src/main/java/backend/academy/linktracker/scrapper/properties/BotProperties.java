@@ -29,7 +29,7 @@ public class BotProperties {
     @Pattern(regexp = HTTP_URL)
     private String baseUrl = "http://localhost:8080";
 
-    private Transport transport = Transport.HTTP;
+    private Transport transport = Transport.KAFKA;
 
     @Valid
     private Http http = new Http();
@@ -39,7 +39,8 @@ public class BotProperties {
 
     public enum Transport {
         HTTP,
-        GRPC
+        GRPC,
+        KAFKA
     }
 
     @Getter
