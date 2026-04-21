@@ -16,16 +16,13 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "kafka", matchIfMissing = true)
 public class KafkaBotUpdatesClient implements BotUpdatesClient {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
     private final NotificationKafkaProperties kafkaProperties;
 
     public KafkaBotUpdatesClient(
-            KafkaTemplate<String, String> kafkaTemplate,
-            ObjectMapper objectMapper,
-            NotificationKafkaProperties kafkaProperties) {
+            KafkaTemplate<String, String> kafkaTemplate, NotificationKafkaProperties kafkaProperties) {
         this.kafkaTemplate = kafkaTemplate;
-        this.objectMapper = objectMapper;
         this.kafkaProperties = kafkaProperties;
     }
 

@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
 import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import backend.academy.linktracker.bot.service.LinkUpdateNotificationService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
 import java.util.List;
@@ -30,7 +29,7 @@ class NotificationKafkaListenerTest {
     @BeforeEach
     void setUp() {
         var validator = Validation.buildDefaultValidatorFactory().getValidator();
-        listener = new NotificationKafkaListener(linkUpdateNotificationService, new ObjectMapper(), validator);
+        listener = new NotificationKafkaListener(linkUpdateNotificationService, validator);
     }
 
     @Test

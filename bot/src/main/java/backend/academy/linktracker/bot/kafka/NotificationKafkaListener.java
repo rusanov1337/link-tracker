@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "app.kafka.consumer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class NotificationKafkaListener {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final LinkUpdateNotificationService linkUpdateNotificationService;
-    private final ObjectMapper objectMapper;
     private final Validator validator;
 
     @KafkaListener(topics = "${app.kafka.topics.link-updates}")
