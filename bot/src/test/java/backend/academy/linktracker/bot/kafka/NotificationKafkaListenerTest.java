@@ -10,7 +10,9 @@ import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import backend.academy.linktracker.bot.service.LinkUpdateNotificationService;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
+import jakarta.validation.ValidatorFactory;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,12 +26,18 @@ class NotificationKafkaListenerTest {
     @Mock
     private LinkUpdateNotificationService linkUpdateNotificationService;
 
+    private ValidatorFactory validatorFactory;
     private NotificationKafkaListener listener;
 
     @BeforeEach
     void setUp() {
-        var validator = Validation.buildDefaultValidatorFactory().getValidator();
-        listener = new NotificationKafkaListener(linkUpdateNotificationService, validator);
+        validatorFactory = Validation.buildDefaultValidatorFactory();
+        listener = new NotificationKafkaListener(linkUpdateNotificationService, validatorFactory.getValidator());
+    }
+
+    @AfterEach
+    void tearDown() {
+        validatorFactory.close();
     }
 
     @Test

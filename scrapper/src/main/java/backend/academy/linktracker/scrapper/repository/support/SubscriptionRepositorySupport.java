@@ -11,12 +11,7 @@ public final class SubscriptionRepositorySupport {
     private SubscriptionRepositorySupport() {}
 
     public static void validatePage(int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("Page limit must be positive");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Page offset must be non-negative");
-        }
+        PageValidationSupport.validatePage(limit, offset);
     }
 
     public static <K, V> Map<K, List<String>> groupValues(

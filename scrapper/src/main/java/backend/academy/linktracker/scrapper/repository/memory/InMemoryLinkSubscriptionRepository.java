@@ -2,6 +2,7 @@ package backend.academy.linktracker.scrapper.repository.memory;
 
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
+import backend.academy.linktracker.scrapper.repository.support.PageValidationSupport;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -101,12 +102,7 @@ public class InMemoryLinkSubscriptionRepository implements LinkSubscriptionRepos
     }
 
     private List<LinkSubscription> paginate(List<LinkSubscription> subscriptions, int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("Page limit must be positive");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Page offset must be non-negative");
-        }
+        PageValidationSupport.validatePage(limit, offset);
         if (offset >= subscriptions.size()) {
             return List.of();
         }

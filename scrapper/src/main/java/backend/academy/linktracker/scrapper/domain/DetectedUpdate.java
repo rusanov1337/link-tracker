@@ -13,12 +13,12 @@ public record DetectedUpdate(
         String cursor) {
 
     public DetectedUpdate {
-        provider = Objects.requireNonNull(provider, "provider");
-        eventType = Objects.requireNonNull(eventType, "eventType");
-        title = Objects.requireNonNull(title, "title");
-        author = Objects.requireNonNull(author, "author");
-        createdAt = Objects.requireNonNull(createdAt, "createdAt");
-        preview = Objects.requireNonNull(preview, "preview");
-        cursor = Objects.requireNonNull(cursor, "cursor");
+        Objects.requireNonNull(provider, "provider");
+        Objects.requireNonNull(eventType, "eventType");
+        Objects.requireNonNull(title, "title");
+        Objects.requireNonNull(author, "author");
+        Objects.requireNonNull(createdAt, "createdAt");
+        Objects.requireNonNull(preview, "preview");
+        Objects.requireNonNull(cursor, "cursor");
     }
 }

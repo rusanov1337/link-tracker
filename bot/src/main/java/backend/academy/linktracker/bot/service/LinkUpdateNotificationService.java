@@ -7,6 +7,7 @@ import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.request.SendMessage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,24 +24,7 @@ public class LinkUpdateNotificationService {
 
     public void process(LinkUpdate linkUpdate) {
         var pendingUpdates = new ArrayList<PendingLinkUpdate>();
-        for (var chatId : linkUpdate.tgChatIds()) {
-            var pendingUpdate =
-                    new PendingLinkUpdate(linkUpdate.id(), chatId, linkUpdate.url(), linkUpdate.description());
-            if (recentlyDeliveredLinkUpdateStore.wasDeliveredRecently(pendingUpdate)) {
-                log.atInfo()
-                        .addKeyValue("operation", "skipDuplicateDeliveredUpdate")
-                        .addKeyValue("chatId", pendingUpdate.chatId())
-                        .addKeyValue("updateId", pendingUpdate.updateId())
-                        .addKeyValue("url", pendingUpdate.url())
-                        .log("Recently delivered update ignored");
-                continue;
-            }
-            if (!sendUpdate(pendingUpdate)) {
-                pendingUpdates.add(pendingUpdate);
-            } else {
-                recentlyDeliveredLinkUpdateStore.markDelivered(pendingUpdate);
-            }
-        }
+        processLinkUpdate(linkUpdate, pendingUpdates);
 
         if (!pendingUpdates.isEmpty()) {
             pendingLinkUpdateStore.saveAll(pendingUpdates);
@@ -52,25 +36,7 @@ public class LinkUpdateNotificationService {
     }
 
     public void processStrict(LinkUpdate linkUpdate) {
-        var failedDeliveries = 0;
-        for (var chatId : linkUpdate.tgChatIds()) {
-            var pendingUpdate =
-                    new PendingLinkUpdate(linkUpdate.id(), chatId, linkUpdate.url(), linkUpdate.description());
-            if (recentlyDeliveredLinkUpdateStore.wasDeliveredRecently(pendingUpdate)) {
-                log.atInfo()
-                        .addKeyValue("operation", "skipDuplicateDeliveredUpdate")
-                        .addKeyValue("chatId", pendingUpdate.chatId())
-                        .addKeyValue("updateId", pendingUpdate.updateId())
-                        .addKeyValue("url", pendingUpdate.url())
-                        .log("Recently delivered update ignored");
-                continue;
-            }
-            if (!sendUpdate(pendingUpdate)) {
-                failedDeliveries++;
-                continue;
-            }
-            recentlyDeliveredLinkUpdateStore.markDelivered(pendingUpdate);
-        }
+        var failedDeliveries = processLinkUpdate(linkUpdate, null);
 
         if (failedDeliveries > 0) {
             throw new KafkaNotificationDeliveryException("Failed to deliver " + failedDeliveries + " link updates");
@@ -96,12 +62,7 @@ public class LinkUpdateNotificationService {
 
     public void processReport(ProcessingFailureReport report) {
         var pendingReports = new ArrayList<PendingFailureReport>();
-        for (var chatId : report.tgChatIds()) {
-            var pendingReport = new PendingFailureReport(chatId, report.description());
-            if (!sendReport(pendingReport)) {
-                pendingReports.add(pendingReport);
-            }
-        }
+        processFailureReport(report, pendingReports);
 
         if (!pendingReports.isEmpty()) {
             pendingFailureReportStore.saveAll(pendingReports);
@@ -113,16 +74,60 @@ public class LinkUpdateNotificationService {
     }
 
     public void processReportStrict(ProcessingFailureReport report) {
-        var failedDeliveries = 0;
-        for (var chatId : report.tgChatIds()) {
-            if (!sendReport(new PendingFailureReport(chatId, report.description()))) {
-                failedDeliveries++;
-            }
-        }
+        var failedDeliveries = processFailureReport(report, null);
 
         if (failedDeliveries > 0) {
             throw new KafkaNotificationDeliveryException("Failed to deliver " + failedDeliveries + " failure reports");
         }
+    }
+
+    private int processLinkUpdate(LinkUpdate linkUpdate, List<PendingLinkUpdate> pendingUpdates) {
+        var failedDeliveries = 0;
+        for (var chatId : linkUpdate.tgChatIds()) {
+            var pendingUpdate =
+                    new PendingLinkUpdate(linkUpdate.id(), chatId, linkUpdate.url(), linkUpdate.description());
+            if (skipRecentlyDeliveredUpdate(pendingUpdate)) {
+                continue;
+            }
+            if (!sendUpdate(pendingUpdate)) {
+                failedDeliveries++;
+                if (pendingUpdates != null) {
+                    pendingUpdates.add(pendingUpdate);
+                }
+                continue;
+            }
+            recentlyDeliveredLinkUpdateStore.markDelivered(pendingUpdate);
+        }
+        return failedDeliveries;
+    }
+
+    private int processFailureReport(ProcessingFailureReport report, List<PendingFailureReport> pendingReports) {
+        var failedDeliveries = 0;
+        for (var chatId : report.tgChatIds()) {
+            var pendingReport = new PendingFailureReport(chatId, report.description());
+            if (sendReport(pendingReport)) {
+                continue;
+            }
+            failedDeliveries++;
+            if (pendingReports != null) {
+                pendingReports.add(pendingReport);
+            }
+        }
+        return failedDeliveries;
+    }
+
+    private boolean skipRecentlyDeliveredUpdate(PendingLinkUpdate pendingUpdate) {
+        if (!recentlyDeliveredLinkUpdateStore.wasDeliveredRecently(pendingUpdate)) {
+            return false;
+        }
+
+        log.atInfo()
+                .addKeyValue("operation", "skipDuplicateDeliveredUpdate")
+                .addKeyValue("chatId", pendingUpdate.chatId())
+                .addKeyValue("updateId", pendingUpdate.updateId())
+                .addKeyValue("url", pendingUpdate.url())
+                .log("Recently delivered update ignored");
+        return true;
     }
 
     private String buildMessage(PendingLinkUpdate pendingUpdate) {

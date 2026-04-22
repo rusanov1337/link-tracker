@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.service.command;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
@@ -22,22 +23,8 @@ class CommandExecutionServiceTest {
 
         assertEquals(StartCommandHandler.RESPONSE, knownResponse);
         assertEquals(UnknownCommandHandler.RESPONSE, unknownResponse);
-        assertEquals(
-                1.0,
-                meterRegistry
-                        .find("commands_total")
-                        .tag("command", "/start")
-                        .tag("status", "success")
-                        .counter()
-                        .count());
-        assertEquals(
-                1.0,
-                meterRegistry
-                        .find("commands_total")
-                        .tag("command", "unknown")
-                        .tag("status", "success")
-                        .counter()
-                        .count());
+        assertEquals(1.0, counterCount(meterRegistry, "/start", "success"));
+        assertEquals(1.0, counterCount(meterRegistry, "unknown", "success"));
     }
 
     @Test
@@ -51,14 +38,7 @@ class CommandExecutionServiceTest {
         assertThrows(
                 IllegalStateException.class,
                 () -> service.handle(new CommandRequest("/boom", "", "/boom", 1001L, 77L)));
-        assertEquals(
-                1.0,
-                meterRegistry
-                        .find("commands_total")
-                        .tag("command", "/boom")
-                        .tag("status", "failure")
-                        .counter()
-                        .count());
+        assertEquals(1.0, counterCount(meterRegistry, "/boom", "failure"));
     }
 
     private CommandExecutionService commandExecutionService(SimpleMeterRegistry meterRegistry) {
@@ -68,6 +48,16 @@ class CommandExecutionServiceTest {
                 List.of(new StartCommandHandler(scrapperClient), new HelpCommandHandler(), unknownCommandHandler),
                 unknownCommandHandler);
         return new CommandExecutionService(commandRegistry, new BotMetricsService(meterRegistry));
+    }
+
+    private double counterCount(SimpleMeterRegistry meterRegistry, String command, String status) {
+        var counter = meterRegistry
+                .find("commands_total")
+                .tag("command", command)
+                .tag("status", status)
+                .counter();
+        assertNotNull(counter);
+        return counter.count();
     }
 
     private static final class FailingCommandHandler implements CommandHandler {

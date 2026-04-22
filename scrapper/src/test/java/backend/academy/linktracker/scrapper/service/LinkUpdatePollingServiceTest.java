@@ -1,6 +1,7 @@
 package backend.academy.linktracker.scrapper.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import backend.academy.linktracker.scrapper.client.bot.BotUpdatesClient;
@@ -10,6 +11,7 @@ import backend.academy.linktracker.scrapper.domain.DetectedUpdate;
 import backend.academy.linktracker.scrapper.domain.LinkCheckResult;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
+import backend.academy.linktracker.scrapper.repository.NotificationOutboxRepository;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryLinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryTrackedLinkRepository;
 import java.net.URI;
@@ -22,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -87,8 +90,8 @@ class LinkUpdatePollingServiceTest {
         assertEquals(0, botClient.notifications.size());
         var storedLink = trackedLinkRepository.findById(trackedLink.id()).orElseThrow();
         assertEquals(initialUpdatedAt, storedLink.lastUpdatedAt());
-        assertEquals(null, storedLink.lastEventAt());
-        assertEquals(null, storedLink.lastEventCursor());
+        assertNull(storedLink.lastEventAt());
+        assertNull(storedLink.lastEventCursor());
         assertTrue(storedLink.lastCheckedAt().isAfter(initialUpdatedAt));
     }
 
@@ -336,10 +339,10 @@ class LinkUpdatePollingServiceTest {
         var schedulerProperties = new SchedulerProperties();
         schedulerProperties.setBatchSize(batchSize);
         schedulerProperties.setParallelism(parallelism);
-        var pendingFailureReportStore = new PendingProcessingFailureReportStore();
+        var notificationOutboxRepository = new InMemoryNotificationOutboxRepository();
         var fetchService = new LinkUpdateFetchService(externalClients, schedulerProperties);
         var notificationDispatcher = new LinkUpdateNotificationDispatcher(
-                botClient, linkUpdateDescriptionFormatter, pendingFailureReportStore);
+                botClient, linkUpdateDescriptionFormatter, notificationOutboxRepository, new NoOpTransactionManager());
         return new LinkUpdatePollingService(
                 trackedLinkRepository,
                 linkSubscriptionRepository,
@@ -383,6 +386,180 @@ class LinkUpdatePollingServiceTest {
     }
 
     private record ReportNotification(long chatId, String description) {}
+
+    private static final class InMemoryNotificationOutboxRepository implements NotificationOutboxRepository {
+        private static final String LINK_UPDATE = "LINK_UPDATE";
+        private static final String PROCESSING_FAILURE_REPORT = "PROCESSING_FAILURE_REPORT";
+
+        private final List<StoredEvent> events = new ArrayList<>();
+        private long nextId = 1L;
+
+        @Override
+        public synchronized void saveLinkUpdates(List<OutboxNotification> notifications, Instant createdAt) {
+            for (var notification : notifications) {
+                events.add(new StoredEvent(
+                        nextId++,
+                        LINK_UPDATE,
+                        notification.trackedLinkId(),
+                        notification.trackedLinkUrl(),
+                        notification.description(),
+                        notification.chatIds(),
+                        null,
+                        null,
+                        null));
+            }
+        }
+
+        @Override
+        public synchronized void saveProcessingFailureReports(List<OutboxFailureReport> reports, Instant createdAt) {
+            for (var report : reports) {
+                var duplicatePendingReport = events.stream()
+                        .anyMatch(event -> PROCESSING_FAILURE_REPORT.equals(event.eventType)
+                                && event.processedAt == null
+                                && event.description.equals(report.description())
+                                && event.chatIds.equals(report.chatIds()));
+                if (duplicatePendingReport) {
+                    continue;
+                }
+                events.add(new StoredEvent(
+                        nextId++,
+                        PROCESSING_FAILURE_REPORT,
+                        0L,
+                        null,
+                        report.description(),
+                        report.chatIds(),
+                        null,
+                        null,
+                        null));
+            }
+        }
+
+        @Override
+        public synchronized List<OutboxNotification> claimNextLinkUpdatesToPublish(
+                String processingOwner, Instant claimedAt, Instant processingUntil, int limit) {
+            var claimedNotifications = new ArrayList<OutboxNotification>();
+            for (var leasedEvent : claim(processingOwner, claimedAt, processingUntil, limit, LINK_UPDATE)) {
+                claimedNotifications.add(leasedEvent.toOutboxNotification());
+            }
+            return List.copyOf(claimedNotifications);
+        }
+
+        @Override
+        public synchronized List<OutboxFailureReport> claimNextProcessingFailureReportsToPublish(
+                String processingOwner, Instant claimedAt, Instant processingUntil, int limit) {
+            var claimedReports = new ArrayList<OutboxFailureReport>();
+            for (var leasedEvent :
+                    claim(processingOwner, claimedAt, processingUntil, limit, PROCESSING_FAILURE_REPORT)) {
+                claimedReports.add(leasedEvent.toOutboxFailureReport());
+            }
+            return List.copyOf(claimedReports);
+        }
+
+        @Override
+        public synchronized void markProcessed(long id, String processingOwner, Instant processedAt) {
+            for (var index = 0; index < events.size(); index++) {
+                var event = events.get(index);
+                if (event.id == id && processingOwner.equals(event.processingOwner)) {
+                    events.set(index, event.markProcessed(processedAt));
+                    return;
+                }
+            }
+        }
+
+        @Override
+        public synchronized void release(long id, String processingOwner) {
+            for (var index = 0; index < events.size(); index++) {
+                var event = events.get(index);
+                if (event.id == id && processingOwner.equals(event.processingOwner)) {
+                    events.set(index, event.release());
+                    return;
+                }
+            }
+        }
+
+        private List<StoredEvent> claim(
+                String processingOwner, Instant claimedAt, Instant processingUntil, int limit, String eventType) {
+            var claimedEvents = new ArrayList<StoredEvent>();
+            for (var index = 0; index < events.size() && claimedEvents.size() < limit; index++) {
+                var event = events.get(index);
+                if (!eventType.equals(event.eventType) || event.processedAt != null) {
+                    continue;
+                }
+                if (event.processingUntil != null && event.processingUntil.isAfter(claimedAt)) {
+                    continue;
+                }
+
+                var leasedEvent = event.withLease(processingOwner, processingUntil);
+                events.set(index, leasedEvent);
+                claimedEvents.add(leasedEvent);
+            }
+            return List.copyOf(claimedEvents);
+        }
+
+        private static final class StoredEvent {
+            private final long id;
+            private final String eventType;
+            private final long trackedLinkId;
+            private final URI trackedLinkUrl;
+            private final String description;
+            private final List<Long> chatIds;
+            private final Instant processedAt;
+            private final String processingOwner;
+            private final Instant processingUntil;
+
+            private StoredEvent(
+                    long id,
+                    String eventType,
+                    long trackedLinkId,
+                    URI trackedLinkUrl,
+                    String description,
+                    List<Long> chatIds,
+                    Instant processedAt,
+                    String processingOwner,
+                    Instant processingUntil) {
+                this.id = id;
+                this.eventType = eventType;
+                this.trackedLinkId = trackedLinkId;
+                this.trackedLinkUrl = trackedLinkUrl;
+                this.description = description;
+                this.chatIds = List.copyOf(chatIds);
+                this.processedAt = processedAt;
+                this.processingOwner = processingOwner;
+                this.processingUntil = processingUntil;
+            }
+
+            private StoredEvent withLease(String processingOwner, Instant processingUntil) {
+                return new StoredEvent(
+                        id,
+                        eventType,
+                        trackedLinkId,
+                        trackedLinkUrl,
+                        description,
+                        chatIds,
+                        processedAt,
+                        processingOwner,
+                        processingUntil);
+            }
+
+            private StoredEvent markProcessed(Instant processedAt) {
+                return new StoredEvent(
+                        id, eventType, trackedLinkId, trackedLinkUrl, description, chatIds, processedAt, null, null);
+            }
+
+            private StoredEvent release() {
+                return new StoredEvent(
+                        id, eventType, trackedLinkId, trackedLinkUrl, description, chatIds, processedAt, null, null);
+            }
+
+            private OutboxNotification toOutboxNotification() {
+                return new OutboxNotification(id, trackedLinkId, trackedLinkUrl, description, chatIds);
+            }
+
+            private OutboxFailureReport toOutboxFailureReport() {
+                return new OutboxFailureReport(id, description, chatIds);
+            }
+        }
+    }
 
     private static final class StubExternalLinkClient implements ExternalLinkClient {
         private final URI supportedUrl;
@@ -455,14 +632,14 @@ class LinkUpdatePollingServiceTest {
 
     private static final class NoOpTransactionManager implements PlatformTransactionManager {
         @Override
-        public TransactionStatus getTransaction(TransactionDefinition definition) {
+        public @NonNull TransactionStatus getTransaction(@NonNull TransactionDefinition definition) {
             return new SimpleTransactionStatus();
         }
 
         @Override
-        public void commit(TransactionStatus status) {}
+        public void commit(@NonNull TransactionStatus status) {}
 
         @Override
-        public void rollback(TransactionStatus status) {}
+        public void rollback(@NonNull TransactionStatus status) {}
     }
 }

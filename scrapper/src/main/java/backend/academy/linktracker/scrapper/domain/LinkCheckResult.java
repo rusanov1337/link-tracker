@@ -7,7 +7,7 @@ import java.util.Optional;
 public record LinkCheckResult(Optional<String> cursor, List<DetectedUpdate> updates, boolean failed) {
 
     public LinkCheckResult {
-        cursor = Objects.requireNonNull(cursor, "cursor");
+        Objects.requireNonNull(cursor, "cursor");
         updates = List.copyOf(Objects.requireNonNull(updates, "updates"));
     }
 

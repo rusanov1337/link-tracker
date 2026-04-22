@@ -2,6 +2,7 @@ package backend.academy.linktracker.scrapper.repository.memory;
 
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
+import backend.academy.linktracker.scrapper.repository.support.PageValidationSupport;
 import backend.academy.linktracker.scrapper.repository.support.SupportedLinkCanonicalizer;
 import java.net.URI;
 import java.time.Instant;
@@ -100,12 +101,7 @@ public class InMemoryTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public List<TrackedLink> findAll(int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("Page limit must be positive");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Page offset must be non-negative");
-        }
+        PageValidationSupport.validatePage(limit, offset);
 
         var sortedLinks = linksById.values().stream()
                 .sorted(Comparator.comparingLong(TrackedLink::id))

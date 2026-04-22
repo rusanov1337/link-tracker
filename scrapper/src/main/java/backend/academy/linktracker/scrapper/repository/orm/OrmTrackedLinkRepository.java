@@ -3,6 +3,7 @@ package backend.academy.linktracker.scrapper.repository.orm;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
 import backend.academy.linktracker.scrapper.repository.orm.entity.LinkEntity;
+import backend.academy.linktracker.scrapper.repository.support.PageValidationSupport;
 import backend.academy.linktracker.scrapper.repository.support.SupportedLinkCanonicalizer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -143,12 +144,7 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public List<TrackedLink> findAll(int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("Page limit must be positive");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Page offset must be non-negative");
-        }
+        PageValidationSupport.validatePage(limit, offset);
 
         return entityManager
                 .createQuery("select l from LinkEntity l order by l.id", LinkEntity.class)
@@ -271,16 +267,13 @@ public class OrmTrackedLinkRepository implements TrackedLinkRepository {
     }
 
     private Instant toInstant(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Instant instant) {
-            return instant;
-        }
-        if (value instanceof Timestamp timestamp) {
-            return timestamp.toInstant();
-        }
-        throw new IllegalArgumentException(
-                "Unsupported temporal value type: " + value.getClass().getName());
+        return switch (value) {
+            case null -> null;
+            case Instant instant -> instant;
+            case Timestamp timestamp -> timestamp.toInstant();
+            default ->
+                throw new IllegalArgumentException(
+                        "Unsupported temporal value type: " + value.getClass().getName());
+        };
     }
 }

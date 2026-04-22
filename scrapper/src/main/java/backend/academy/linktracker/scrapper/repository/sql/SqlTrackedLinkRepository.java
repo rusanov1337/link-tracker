@@ -2,6 +2,7 @@ package backend.academy.linktracker.scrapper.repository.sql;
 
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.repository.TrackedLinkRepository;
+import backend.academy.linktracker.scrapper.repository.support.PageValidationSupport;
 import backend.academy.linktracker.scrapper.repository.support.SupportedLinkCanonicalizer;
 import java.net.URI;
 import java.sql.ResultSet;
@@ -23,12 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SqlTrackedLinkRepository implements TrackedLinkRepository {
 
     private final JdbcClient jdbcClient;
-    private final RowMapper<TrackedLink> trackedLinkRowMapper = new RowMapper<>() {
-        @Override
-        public TrackedLink mapRow(ResultSet resultSet, int rowNum) throws SQLException {
-            return mapTrackedLink(resultSet);
-        }
-    };
+    private final RowMapper<TrackedLink> trackedLinkRowMapper = (resultSet, rowNum) -> mapTrackedLink(resultSet);
 
     public SqlTrackedLinkRepository(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
@@ -167,12 +163,7 @@ public class SqlTrackedLinkRepository implements TrackedLinkRepository {
 
     @Override
     public List<TrackedLink> findAll(int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("Page limit must be positive");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Page offset must be non-negative");
-        }
+        PageValidationSupport.validatePage(limit, offset);
 
         return jdbcClient
                 .sql("""

@@ -1,6 +1,7 @@
 package backend.academy.linktracker.scrapper.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
@@ -17,7 +18,7 @@ class LinkCheckResultTest {
 
         assertEquals(Optional.of("cursor-42"), result.cursor());
         assertTrue(result.updates().isEmpty());
-        assertEquals(false, result.failed());
+        assertFalse(result.failed());
     }
 
     @Test

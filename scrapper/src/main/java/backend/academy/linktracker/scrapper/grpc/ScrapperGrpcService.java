@@ -113,7 +113,7 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
             var result = action.run();
             responseObserver.onNext(result);
             responseObserver.onCompleted();
-        } catch (IllegalArgumentException exception) {
+        } catch (IllegalArgumentException | UnsupportedLinkException exception) {
             responseObserver.onError(
                     grpcError(Status.INVALID_ARGUMENT, exception.getClass().getSimpleName(), exception));
         } catch (ChatNotFoundException | LinkNotFoundException exception) {
@@ -122,9 +122,6 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
         } catch (ChatAlreadyExistsException | LinkAlreadyTrackedException exception) {
             responseObserver.onError(
                     grpcError(Status.ALREADY_EXISTS, exception.getClass().getSimpleName(), exception));
-        } catch (UnsupportedLinkException exception) {
-            responseObserver.onError(
-                    grpcError(Status.INVALID_ARGUMENT, exception.getClass().getSimpleName(), exception));
         } catch (RuntimeException exception) {
             responseObserver.onError(
                     Status.INTERNAL.withDescription("Scrapper gRPC error").asRuntimeException());

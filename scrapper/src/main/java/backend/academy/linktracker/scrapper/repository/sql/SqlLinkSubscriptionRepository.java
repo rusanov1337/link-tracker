@@ -3,8 +3,6 @@ package backend.academy.linktracker.scrapper.repository.sql;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
 import backend.academy.linktracker.scrapper.repository.LinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.support.SubscriptionRepositorySupport;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,12 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository {
 
     private final JdbcClient jdbcClient;
-    private final RowMapper<SubscriptionKey> subscriptionKeyRowMapper = new RowMapper<>() {
-        @Override
-        public SubscriptionKey mapRow(ResultSet resultSet, int rowNum) throws SQLException {
-            return new SubscriptionKey(resultSet.getLong("chat_id"), resultSet.getLong("link_id"));
-        }
-    };
+    private final RowMapper<SubscriptionKey> subscriptionKeyRowMapper =
+            (resultSet, rowNum) -> new SubscriptionKey(resultSet.getLong("chat_id"), resultSet.getLong("link_id"));
     private final RowMapper<SubscriptionValue> subscriptionTagRowMapper = valueRowMapper("tag");
     private final RowMapper<SubscriptionValue> subscriptionFilterRowMapper = valueRowMapper("filter_value");
 

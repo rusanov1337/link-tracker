@@ -91,9 +91,9 @@ class BotKafkaConsumerIntegrationTest {
                         "tgChatIds",
                         java.util.List.of(11L, 22L))));
 
-        Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
-        });
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))));
     }
 
     @Test
@@ -106,9 +106,9 @@ class BotKafkaConsumerIntegrationTest {
                 OBJECT_MAPPER.writeValueAsString(
                         Map.of("description", "Failed links report", "tgChatIds", java.util.List.of(11L, 22L))));
 
-        Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
-        });
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> verify(2, postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))));
     }
 
     @Test
@@ -155,9 +155,9 @@ class BotKafkaConsumerIntegrationTest {
         var dlqRecord = awaitDlqRecord(kafkaProperties.getTopics().getLinkUpdatesDlq(), "delivery-failure");
 
         org.junit.jupiter.api.Assertions.assertTrue(dlqRecord.value().contains("\"id\":42"));
-        Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            verify(3, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
-        });
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> verify(3, postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))));
     }
 
     private void stubTelegramSuccess() {

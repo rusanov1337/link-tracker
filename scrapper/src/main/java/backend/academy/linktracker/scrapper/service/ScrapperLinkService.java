@@ -6,6 +6,7 @@ import backend.academy.linktracker.scrapper.api.dto.ListLinksResponse;
 import backend.academy.linktracker.scrapper.api.dto.RemoveLinkRequest;
 import backend.academy.linktracker.scrapper.client.external.ExternalLinkClient;
 import backend.academy.linktracker.scrapper.domain.LinkSubscription;
+import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.exception.ChatAlreadyExistsException;
 import backend.academy.linktracker.scrapper.exception.ChatNotFoundException;
 import backend.academy.linktracker.scrapper.exception.LinkAlreadyTrackedException;
@@ -103,7 +104,7 @@ public class ScrapperLinkService {
                                     .distinct()
                                     .toList())
                             .stream()
-                            .collect(Collectors.toMap(trackedLink -> trackedLink.id(), Function.identity()));
+                            .collect(Collectors.toMap(TrackedLink::id, Function.identity()));
 
             for (var subscription : subscriptions) {
                 var trackedLink = trackedLinksById.get(subscription.linkId());
