@@ -17,4 +17,8 @@
     <changeSet author="codex" id="003-add-link-processing-lease">
         <sqlFile path="003-add-link-processing-lease.sql" relativeToChangelogFile="true"/>
     </changeSet>
+
+    <changeSet author="codex" id="004-add-notification-outbox">
+        <sqlFile path="004-add-notification-outbox.sql" relativeToChangelogFile="true"/>
+    </changeSet>
 </databaseChangeLog>

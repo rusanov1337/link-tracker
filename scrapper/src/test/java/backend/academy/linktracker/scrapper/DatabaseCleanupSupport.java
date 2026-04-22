@@ -12,7 +12,7 @@ public abstract class DatabaseCleanupSupport {
     @BeforeEach
     void cleanDatabase() {
         jdbcClient.sql("""
-                truncate table subscription_filters, subscription_tags, subscriptions, links, chats
+                truncate table notification_outbox, subscription_filters, subscription_tags, subscriptions, links, chats
                 restart identity cascade
                 """).update();
     }

@@ -496,36 +496,19 @@ class LinkUpdatePollingServiceTest {
             return List.copyOf(claimedEvents);
         }
 
-        private static final class StoredEvent {
-            private final long id;
-            private final String eventType;
-            private final long trackedLinkId;
-            private final URI trackedLinkUrl;
-            private final String description;
-            private final List<Long> chatIds;
-            private final Instant processedAt;
-            private final String processingOwner;
-            private final Instant processingUntil;
+        private record StoredEvent(
+                long id,
+                String eventType,
+                long trackedLinkId,
+                URI trackedLinkUrl,
+                String description,
+                List<Long> chatIds,
+                Instant processedAt,
+                String processingOwner,
+                Instant processingUntil) {
 
-            private StoredEvent(
-                    long id,
-                    String eventType,
-                    long trackedLinkId,
-                    URI trackedLinkUrl,
-                    String description,
-                    List<Long> chatIds,
-                    Instant processedAt,
-                    String processingOwner,
-                    Instant processingUntil) {
-                this.id = id;
-                this.eventType = eventType;
-                this.trackedLinkId = trackedLinkId;
-                this.trackedLinkUrl = trackedLinkUrl;
-                this.description = description;
-                this.chatIds = List.copyOf(chatIds);
-                this.processedAt = processedAt;
-                this.processingOwner = processingOwner;
-                this.processingUntil = processingUntil;
+            private StoredEvent {
+                chatIds = List.copyOf(chatIds);
             }
 
             private StoredEvent withLease(String processingOwner, Instant processingUntil) {
@@ -561,14 +544,7 @@ class LinkUpdatePollingServiceTest {
         }
     }
 
-    private static final class StubExternalLinkClient implements ExternalLinkClient {
-        private final URI supportedUrl;
-        private final LinkCheckResult checkResult;
-
-        private StubExternalLinkClient(URI supportedUrl, LinkCheckResult checkResult) {
-            this.supportedUrl = supportedUrl;
-            this.checkResult = checkResult;
-        }
+    private record StubExternalLinkClient(URI supportedUrl, LinkCheckResult checkResult) implements ExternalLinkClient {
 
         @Override
         public boolean supports(URI url) {
@@ -632,7 +608,7 @@ class LinkUpdatePollingServiceTest {
 
     private static final class NoOpTransactionManager implements PlatformTransactionManager {
         @Override
-        public @NonNull TransactionStatus getTransaction(@NonNull TransactionDefinition definition) {
+        public @NonNull TransactionStatus getTransaction(TransactionDefinition definition) {
             return new SimpleTransactionStatus();
         }
 

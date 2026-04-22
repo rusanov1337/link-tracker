@@ -55,6 +55,8 @@ public class LinkUpdatePollingService {
         var failedLinksByChat = new ConcurrentHashMap<Long, Set<URI>>();
         var executorService = createBatchExecutor();
         try {
+            notificationDispatcher.publishPendingNotifications(
+                    failedLinksByChat, schedulerProperties.getBatchSize(), schedulerProperties.getProcessingLease());
             while (true) {
                 var batchOutcome = processNextBatch(checkedAt, executorService);
                 if (batchOutcome.processedLinksCount() == 0) {
@@ -62,8 +64,14 @@ public class LinkUpdatePollingService {
                 }
                 checkedLinksCount += batchOutcome.processedLinksCount();
                 mergeFailedLinks(batchOutcome.failedLinksByChat(), failedLinksByChat);
-                notificationDispatcher.sendNotifications(batchOutcome.notifications(), failedLinksByChat);
+                notificationDispatcher.publishPendingNotifications(
+                        failedLinksByChat,
+                        schedulerProperties.getBatchSize(),
+                        schedulerProperties.getProcessingLease());
             }
+            notificationDispatcher.stageFailureReports(copyFailureLinks(failedLinksByChat), checkedAt);
+            notificationDispatcher.publishPendingFailureReports(
+                    schedulerProperties.getBatchSize(), schedulerProperties.getProcessingLease());
         } finally {
             shutdownExecutor(executorService);
         }
@@ -72,7 +80,6 @@ public class LinkUpdatePollingService {
                 .addKeyValue("operation", "checkUpdates")
                 .addKeyValue("linksChecked", checkedLinksCount)
                 .log("Links check finished");
-        notificationDispatcher.sendFailureReports(failedLinksByChat);
     }
 
     private ExecutorService createBatchExecutor() {
@@ -117,7 +124,8 @@ public class LinkUpdatePollingService {
                         failedLinksByChat,
                         subscriberChatIdsByLinkId);
             }
-            return new BatchOutcome(links.size(), List.copyOf(notifications), copyFailureLinks(failedLinksByChat));
+            notificationDispatcher.stageNotifications(List.copyOf(notifications), checkedAt);
+            return new BatchOutcome(links.size(), copyFailureLinks(failedLinksByChat));
         });
     }
 
@@ -220,10 +228,9 @@ public class LinkUpdatePollingService {
         return Map.copyOf(copy);
     }
 
-    private record BatchOutcome(
-            int processedLinksCount, List<PendingNotification> notifications, Map<Long, Set<URI>> failedLinksByChat) {
+    private record BatchOutcome(int processedLinksCount, Map<Long, Set<URI>> failedLinksByChat) {
         private static BatchOutcome empty() {
-            return new BatchOutcome(0, List.of(), Map.of());
+            return new BatchOutcome(0, Map.of());
         }
     }
 }
