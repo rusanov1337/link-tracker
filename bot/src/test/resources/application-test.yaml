@@ -2,6 +2,8 @@ app:
   kafka:
     consumer:
       enabled: false
+      max-attempts: 3
+      retry-backoff: 50ms
   telegram:
     url: ${wiremock.server.baseUrl}/bot
     token: test-token

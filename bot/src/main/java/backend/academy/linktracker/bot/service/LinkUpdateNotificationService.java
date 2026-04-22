@@ -2,6 +2,7 @@ package backend.academy.linktracker.bot.service;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
 import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
+import backend.academy.linktracker.bot.kafka.KafkaNotificationDeliveryException;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.request.SendMessage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -50,6 +51,32 @@ public class LinkUpdateNotificationService {
         }
     }
 
+    public void processStrict(LinkUpdate linkUpdate) {
+        var failedDeliveries = 0;
+        for (var chatId : linkUpdate.tgChatIds()) {
+            var pendingUpdate =
+                    new PendingLinkUpdate(linkUpdate.id(), chatId, linkUpdate.url(), linkUpdate.description());
+            if (recentlyDeliveredLinkUpdateStore.wasDeliveredRecently(pendingUpdate)) {
+                log.atInfo()
+                        .addKeyValue("operation", "skipDuplicateDeliveredUpdate")
+                        .addKeyValue("chatId", pendingUpdate.chatId())
+                        .addKeyValue("updateId", pendingUpdate.updateId())
+                        .addKeyValue("url", pendingUpdate.url())
+                        .log("Recently delivered update ignored");
+                continue;
+            }
+            if (!sendUpdate(pendingUpdate)) {
+                failedDeliveries++;
+                continue;
+            }
+            recentlyDeliveredLinkUpdateStore.markDelivered(pendingUpdate);
+        }
+
+        if (failedDeliveries > 0) {
+            throw new KafkaNotificationDeliveryException("Failed to deliver " + failedDeliveries + " link updates");
+        }
+    }
+
     public void retryPendingUpdates() {
         var pendingUpdates = pendingLinkUpdateStore.findAll();
         for (var pendingUpdate : pendingUpdates) {
@@ -82,6 +109,19 @@ public class LinkUpdateNotificationService {
                     .addKeyValue("operation", "queuePendingFailureReports")
                     .addKeyValue("pendingReportsCount", pendingReports.size())
                     .log("Failure reports queued for retry");
+        }
+    }
+
+    public void processReportStrict(ProcessingFailureReport report) {
+        var failedDeliveries = 0;
+        for (var chatId : report.tgChatIds()) {
+            if (!sendReport(new PendingFailureReport(chatId, report.description()))) {
+                failedDeliveries++;
+            }
+        }
+
+        if (failedDeliveries > 0) {
+            throw new KafkaNotificationDeliveryException("Failed to deliver " + failedDeliveries + " failure reports");
         }
     }
 

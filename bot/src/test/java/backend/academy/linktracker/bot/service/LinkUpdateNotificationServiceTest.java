@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
 import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
+import backend.academy.linktracker.bot.kafka.KafkaNotificationDeliveryException;
 import backend.academy.linktracker.bot.properties.TelegramProperties;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.response.SendResponse;
@@ -159,6 +161,41 @@ class LinkUpdateNotificationServiceTest {
 
         service.retryPendingUpdates();
 
+        assertEquals(0, pendingFailureReportStore.size());
+    }
+
+    @Test
+    void processStrictThrowsWithoutQueueingPendingUpdates() {
+        var telegramBot = mock(TelegramBot.class);
+        var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var failureResponse = failureResponse();
+
+        when(telegramBot.execute(any())).thenReturn(failureResponse);
+
+        assertThrows(
+                KafkaNotificationDeliveryException.class,
+                () -> service.processStrict(
+                        new LinkUpdate(1L, "https://github.com/user/repo", "updated", List.of(22L))));
+        assertEquals(0, pendingLinkUpdateStore.size());
+    }
+
+    @Test
+    void processReportStrictThrowsWithoutQueueingPendingReports() {
+        var telegramBot = mock(TelegramBot.class);
+        var pendingLinkUpdateStore = new PendingLinkUpdateStore();
+        var pendingFailureReportStore = new PendingFailureReportStore();
+        var service = new LinkUpdateNotificationService(
+                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var failureResponse = failureResponse();
+
+        when(telegramBot.execute(any())).thenReturn(failureResponse);
+
+        assertThrows(
+                KafkaNotificationDeliveryException.class,
+                () -> service.processReportStrict(new ProcessingFailureReport("Failed links", List.of(22L))));
         assertEquals(0, pendingFailureReportStore.size());
     }
 

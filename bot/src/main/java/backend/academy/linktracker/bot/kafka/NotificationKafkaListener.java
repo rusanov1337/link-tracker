@@ -23,12 +23,12 @@ public class NotificationKafkaListener {
 
     @KafkaListener(topics = "${app.kafka.topics.link-updates}")
     public void processLinkUpdate(String payload) {
-        linkUpdateNotificationService.process(readAndValidate(payload, LinkUpdate.class));
+        linkUpdateNotificationService.processStrict(readAndValidate(payload, LinkUpdate.class));
     }
 
     @KafkaListener(topics = "${app.kafka.topics.processing-failure-reports}")
     public void processProcessingFailureReport(String payload) {
-        linkUpdateNotificationService.processReport(readAndValidate(payload, ProcessingFailureReport.class));
+        linkUpdateNotificationService.processReportStrict(readAndValidate(payload, ProcessingFailureReport.class));
     }
 
     private <T> T readAndValidate(String payload, Class<T> type) {

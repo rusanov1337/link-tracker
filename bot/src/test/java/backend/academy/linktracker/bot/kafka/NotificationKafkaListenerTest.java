@@ -44,7 +44,7 @@ class NotificationKafkaListenerTest {
                 """);
 
         var captor = ArgumentCaptor.forClass(LinkUpdate.class);
-        verify(linkUpdateNotificationService).process(captor.capture());
+        verify(linkUpdateNotificationService).processStrict(captor.capture());
         assertEquals(
                 new LinkUpdate(42L, "https://github.com/octocat/hello-world", "Updated", List.of(1L, 2L)),
                 captor.getValue());
@@ -60,7 +60,7 @@ class NotificationKafkaListenerTest {
                 """);
 
         var captor = ArgumentCaptor.forClass(ProcessingFailureReport.class);
-        verify(linkUpdateNotificationService).processReport(captor.capture());
+        verify(linkUpdateNotificationService).processReportStrict(captor.capture());
         assertEquals(new ProcessingFailureReport("Failed links", List.of(1L, 2L)), captor.getValue());
     }
 
