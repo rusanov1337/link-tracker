@@ -16,13 +16,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.Testcontainers;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
 
@@ -30,16 +36,21 @@ import org.testcontainers.utility.MountableFile;
 class BotScrapperContainerE2ETest {
 
     private static final String TELEGRAM_TOKEN = "test-token";
+    private static final String KAFKA_NETWORK_BOOTSTRAP_SERVERS = "kafka:19092";
     private static final int BOT_INTERNAL_PORT = 8080;
     private static final int SCRAPPER_INTERNAL_PORT = 8081;
     private static final int POSTGRES_INTERNAL_PORT = 5432;
     private static final String DB_NAME = "link_tracker";
     private static final String DB_USERNAME = "postgres";
     private static final String DB_PASSWORD = "postgres";
+    private static final String LINK_UPDATES_TOPIC = "link-updates";
+    private static final String LINK_UPDATES_DLQ_TOPIC = "link-updates-dlq";
+    private static final String PROCESSING_FAILURE_REPORTS_TOPIC = "processing-failure-reports";
+    private static final String PROCESSING_FAILURE_REPORTS_DLQ_TOPIC = "processing-failure-reports-dlq";
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     @Test
-    void schedulerSendsNotificationFromScrapperToBotAndTelegram() throws Exception {
+    void schedulerSendsNotificationFromScrapperToKafkaBotAndTelegram() throws Exception {
         var telegramBodies = new CopyOnWriteArrayList<String>();
         HttpServer telegramMockServer = null;
         HttpServer githubMockServer = null;
@@ -57,6 +68,7 @@ class BotScrapperContainerE2ETest {
                     githubMockServer.getAddress().getPort());
 
             var postgresContainer = createPostgresContainer(network);
+            var kafkaContainer = createKafkaContainer(network);
             var botContainer =
                     createBotContainer(network, telegramMockServer.getAddress().getPort());
             var scrapperContainer = createScrapperContainer(
@@ -64,6 +76,8 @@ class BotScrapperContainerE2ETest {
 
             try {
                 postgresContainer.start();
+                kafkaContainer.start();
+                createNotificationTopics(kafkaContainer);
                 botContainer.start();
                 scrapperContainer.start();
 
@@ -81,6 +95,7 @@ class BotScrapperContainerE2ETest {
             } finally {
                 scrapperContainer.stop();
                 botContainer.stop();
+                kafkaContainer.stop();
                 postgresContainer.stop();
             }
         } finally {
@@ -150,6 +165,7 @@ class BotScrapperContainerE2ETest {
                 .withEnv("APP_TELEGRAM_POLLING_ENABLED", "false")
                 .withEnv("APP_TELEGRAM_SET_MY_COMMANDS_ENABLED", "false")
                 .withEnv("APP_SCRAPPER_BASE_URL", "http://scrapper:" + SCRAPPER_INTERNAL_PORT)
+                .withEnv("KAFKA_BOOTSTRAP_SERVERS", KAFKA_NETWORK_BOOTSTRAP_SERVERS)
                 .withCopyFileToContainer(
                         MountableFile.forHostPath(findRepackagedJar("bot", "bot", "e2e")), "/app/bot.jar")
                 .withCommand("java", "-jar", "/app/bot.jar")
@@ -172,6 +188,7 @@ class BotScrapperContainerE2ETest {
                 .withEnv("APP_SCHEDULER_ENABLED", "true")
                 .withEnv("APP_SCHEDULER_INTERVAL", "500")
                 .withEnv("APP_GITHUB_BASE_URL", "http://host.testcontainers.internal:" + githubMockPort)
+                .withEnv("KAFKA_BOOTSTRAP_SERVERS", KAFKA_NETWORK_BOOTSTRAP_SERVERS)
                 .withCopyFileToContainer(
                         MountableFile.forHostPath(findRepackagedJar("scrapper", "scrapper", "e2e")),
                         "/app/scrapper.jar")
@@ -180,6 +197,27 @@ class BotScrapperContainerE2ETest {
                         .forPort(SCRAPPER_INTERNAL_PORT)
                         .forStatusCode(200))
                 .withStartupTimeout(Duration.ofMinutes(2));
+    }
+
+    private static KafkaContainer createKafkaContainer(Network network) {
+        return new KafkaContainer(DockerImageName.parse("apache/kafka-native:3.8.0"))
+                .withNetwork(network)
+                .withNetworkAliases("kafka")
+                .withListener(KAFKA_NETWORK_BOOTSTRAP_SERVERS);
+    }
+
+    private static void createNotificationTopics(KafkaContainer kafkaContainer) throws Exception {
+        try (var adminClient = AdminClient.create(
+                Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers()))) {
+            adminClient
+                    .createTopics(List.of(
+                            new NewTopic(LINK_UPDATES_TOPIC, 1, (short) 1),
+                            new NewTopic(LINK_UPDATES_DLQ_TOPIC, 1, (short) 1),
+                            new NewTopic(PROCESSING_FAILURE_REPORTS_TOPIC, 1, (short) 1),
+                            new NewTopic(PROCESSING_FAILURE_REPORTS_DLQ_TOPIC, 1, (short) 1)))
+                    .all()
+                    .get();
+        }
     }
 
     private static Path findRepackagedJar(String module, String prefix, String classifier) throws IOException {
