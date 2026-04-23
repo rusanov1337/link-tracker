@@ -1,0 +1,30 @@
+{
+  "type": "record",
+  "name": "LinkUpdateEvent",
+  "namespace": "backend.academy.linktracker.kafka.avro",
+  "fields": [
+    {
+      "name": "id",
+      "type": "long",
+      "doc": "Tracked link identifier"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "doc": "Tracked link URL"
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "doc": "Rendered update description"
+    },
+    {
+      "name": "tgChatIds",
+      "type": {
+        "type": "array",
+        "items": "long"
+      },
+      "doc": "Telegram chat identifiers"
+    }
+  ]
+}

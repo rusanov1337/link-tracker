@@ -144,6 +144,24 @@ services:
         kafka-topics --bootstrap-server kafka-1:9092 --list
     restart: "no"
 
+  schema-registry:
+    image: apicurio/apicurio-registry:3.2.1
+    container_name: link-tracker-schema-registry
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    ports:
+      - "8085:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/apis >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 20s
+      retries: 12
+
 volumes:
   postgres-data:
   kafka-1-data:

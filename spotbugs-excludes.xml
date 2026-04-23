@@ -73,4 +73,9 @@
     <Match>
         <Package name="backend.academy.linktracker.grpc"/>
     </Match>
+
+    <!-- Generated Avro records -->
+    <Match>
+        <Package name="backend.academy.linktracker.kafka.avro"/>
+    </Match>
 </FindBugsFilter>

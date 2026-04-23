@@ -6,11 +6,15 @@ spring:
     name: scrapper
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    properties:
+      apicurio.registry.url: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8085}
     producer:
       acks: all
       retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.apicurio.registry.serde.avro.AvroKafkaSerializer
+      properties:
+        apicurio.registry.auto-register: ${KAFKA_AUTO_REGISTER_SCHEMAS:true}
   datasource:
     url: ${SCRAPPER_DB_URL:jdbc:postgresql://localhost:5432/link_tracker}
     username: ${SCRAPPER_DB_USERNAME:postgres}
@@ -33,6 +37,9 @@ app:
     consumer:
       max-attempts: ${KAFKA_CONSUMER_MAX_ATTEMPTS:3}
       retry-backoff: ${KAFKA_CONSUMER_RETRY_BACKOFF:1s}
+    avro:
+      schema-registry-url: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8085}
+      auto-register-schemas: ${KAFKA_AUTO_REGISTER_SCHEMAS:true}
   database:
     access-type: ${SCRAPPER_DB_ACCESS_TYPE:SQL}
     page-size: ${SCRAPPER_DB_PAGE_SIZE:500}

@@ -37,6 +37,7 @@ class BotScrapperContainerE2ETest {
 
     private static final String TELEGRAM_TOKEN = "test-token";
     private static final String KAFKA_NETWORK_BOOTSTRAP_SERVERS = "kafka:19092";
+    private static final String SCHEMA_REGISTRY_URL = "http://schema-registry:8080";
     private static final int BOT_INTERNAL_PORT = 8080;
     private static final int SCRAPPER_INTERNAL_PORT = 8081;
     private static final int POSTGRES_INTERNAL_PORT = 5432;
@@ -69,6 +70,7 @@ class BotScrapperContainerE2ETest {
 
             var postgresContainer = createPostgresContainer(network);
             var kafkaContainer = createKafkaContainer(network);
+            var schemaRegistryContainer = createSchemaRegistryContainer(network);
             var botContainer =
                     createBotContainer(network, telegramMockServer.getAddress().getPort());
             var scrapperContainer = createScrapperContainer(
@@ -77,6 +79,7 @@ class BotScrapperContainerE2ETest {
             try {
                 postgresContainer.start();
                 kafkaContainer.start();
+                schemaRegistryContainer.start();
                 createNotificationTopics(kafkaContainer);
                 botContainer.start();
                 scrapperContainer.start();
@@ -95,6 +98,7 @@ class BotScrapperContainerE2ETest {
             } finally {
                 scrapperContainer.stop();
                 botContainer.stop();
+                schemaRegistryContainer.stop();
                 kafkaContainer.stop();
                 postgresContainer.stop();
             }
@@ -166,6 +170,7 @@ class BotScrapperContainerE2ETest {
                 .withEnv("APP_TELEGRAM_SET_MY_COMMANDS_ENABLED", "false")
                 .withEnv("APP_SCRAPPER_BASE_URL", "http://scrapper:" + SCRAPPER_INTERNAL_PORT)
                 .withEnv("KAFKA_BOOTSTRAP_SERVERS", KAFKA_NETWORK_BOOTSTRAP_SERVERS)
+                .withEnv("KAFKA_SCHEMA_REGISTRY_URL", SCHEMA_REGISTRY_URL)
                 .withCopyFileToContainer(
                         MountableFile.forHostPath(findRepackagedJar("bot", "bot", "e2e")), "/app/bot.jar")
                 .withCommand("java", "-jar", "/app/bot.jar")
@@ -189,6 +194,7 @@ class BotScrapperContainerE2ETest {
                 .withEnv("APP_SCHEDULER_INTERVAL", "500")
                 .withEnv("APP_GITHUB_BASE_URL", "http://host.testcontainers.internal:" + githubMockPort)
                 .withEnv("KAFKA_BOOTSTRAP_SERVERS", KAFKA_NETWORK_BOOTSTRAP_SERVERS)
+                .withEnv("KAFKA_SCHEMA_REGISTRY_URL", SCHEMA_REGISTRY_URL)
                 .withCopyFileToContainer(
                         MountableFile.forHostPath(findRepackagedJar("scrapper", "scrapper", "e2e")),
                         "/app/scrapper.jar")
@@ -204,6 +210,15 @@ class BotScrapperContainerE2ETest {
                 .withNetwork(network)
                 .withNetworkAliases("kafka")
                 .withListener(KAFKA_NETWORK_BOOTSTRAP_SERVERS);
+    }
+
+    private static GenericContainer<?> createSchemaRegistryContainer(Network network) {
+        return new GenericContainer<>(DockerImageName.parse("apicurio/apicurio-registry:3.2.1"))
+                .withNetwork(network)
+                .withNetworkAliases("schema-registry")
+                .withExposedPorts(8080)
+                .waitingFor(Wait.forHttp("/apis").forPort(8080).forStatusCode(200))
+                .withStartupTimeout(Duration.ofMinutes(2));
     }
 
     private static void createNotificationTopics(KafkaContainer kafkaContainer) throws Exception {

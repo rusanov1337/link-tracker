@@ -6,17 +6,24 @@ spring:
     name: bot
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    properties:
+      apicurio.registry.url: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8085}
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:link-tracker-bot}
       auto-offset-reset: earliest
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        apicurio.registry.use-specific-avro-reader: ${KAFKA_SPECIFIC_AVRO_READER:true}
+        spring.deserializer.value.delegate.class: io.apicurio.registry.serde.avro.AvroKafkaDeserializer
     producer:
       acks: all
       retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.apicurio.registry.serde.avro.AvroKafkaSerializer
+      properties:
+        apicurio.registry.auto-register: ${KAFKA_AUTO_REGISTER_SCHEMAS:true}
     listener:
       ack-mode: record
 
@@ -31,6 +38,10 @@ app:
       enabled: ${KAFKA_CONSUMER_ENABLED:true}
       max-attempts: ${KAFKA_CONSUMER_MAX_ATTEMPTS:3}
       retry-backoff: ${KAFKA_CONSUMER_RETRY_BACKOFF:1s}
+    avro:
+      schema-registry-url: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8085}
+      auto-register-schemas: ${KAFKA_AUTO_REGISTER_SCHEMAS:true}
+      specific-reader: ${KAFKA_SPECIFIC_AVRO_READER:true}
   grpc:
     server:
       enabled: ${BOT_GRPC_SERVER_ENABLED:false}

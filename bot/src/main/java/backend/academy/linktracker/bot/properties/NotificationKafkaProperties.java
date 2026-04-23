@@ -27,6 +27,9 @@ public class NotificationKafkaProperties {
     @Valid
     private Consumer consumer = new Consumer();
 
+    @Valid
+    private Avro avro = new Avro();
+
     @Getter
     @Setter
     @EqualsAndHashCode
@@ -59,5 +62,19 @@ public class NotificationKafkaProperties {
 
         @DurationUnit(ChronoUnit.MILLIS)
         private Duration retryBackoff = Duration.ofSeconds(1);
+    }
+
+    @Getter
+    @Setter
+    @EqualsAndHashCode
+    @NoArgsConstructor
+    public static class Avro {
+
+        @NotBlank
+        private String schemaRegistryUrl = "http://localhost:8085";
+
+        private boolean autoRegisterSchemas = true;
+
+        private boolean specificReader = true;
     }
 }

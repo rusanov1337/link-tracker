@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "ProcessingFailureReportEvent",
+  "namespace": "backend.academy.linktracker.kafka.avro",
+  "fields": [
+    {
+      "name": "description",
+      "type": "string",
+      "doc": "Failure description"
+    },
+    {
+      "name": "tgChatIds",
+      "type": {
+        "type": "array",
+        "items": "long"
+      },
+      "doc": "Telegram chat identifiers"
+    }
+  ]
+}

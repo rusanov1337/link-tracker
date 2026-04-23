@@ -3,11 +3,12 @@ package backend.academy.linktracker.bot.kafka;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import backend.academy.linktracker.bot.api.dto.LinkUpdate;
 import backend.academy.linktracker.bot.api.dto.ProcessingFailureReport;
 import backend.academy.linktracker.bot.service.LinkUpdateNotificationService;
+import backend.academy.linktracker.kafka.avro.LinkUpdateEvent;
+import backend.academy.linktracker.kafka.avro.ProcessingFailureReportEvent;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
@@ -42,14 +43,12 @@ class NotificationKafkaListenerTest {
 
     @Test
     void processLinkUpdatePassesValidPayloadToNotificationService() {
-        listener.processLinkUpdate("""
-                {
-                  "id": 42,
-                  "url": "https://github.com/octocat/hello-world",
-                  "description": "Updated",
-                  "tgChatIds": [1, 2]
-                }
-                """);
+        listener.processLinkUpdate(LinkUpdateEvent.newBuilder()
+                .setId(42L)
+                .setUrl("https://github.com/octocat/hello-world")
+                .setDescription("Updated")
+                .setTgChatIds(List.of(1L, 2L))
+                .build());
 
         var captor = ArgumentCaptor.forClass(LinkUpdate.class);
         verify(linkUpdateNotificationService).processStrict(captor.capture());
@@ -60,12 +59,10 @@ class NotificationKafkaListenerTest {
 
     @Test
     void processProcessingFailureReportPassesValidPayloadToNotificationService() {
-        listener.processProcessingFailureReport("""
-                {
-                  "description": "Failed links",
-                  "tgChatIds": [1, 2]
-                }
-                """);
+        listener.processProcessingFailureReport(ProcessingFailureReportEvent.newBuilder()
+                .setDescription("Failed links")
+                .setTgChatIds(List.of(1L, 2L))
+                .build());
 
         var captor = ArgumentCaptor.forClass(ProcessingFailureReport.class);
         verify(linkUpdateNotificationService).processReportStrict(captor.capture());
@@ -73,23 +70,14 @@ class NotificationKafkaListenerTest {
     }
 
     @Test
-    void processLinkUpdateRejectsMalformedJson() {
-        assertThrows(IllegalArgumentException.class, () -> listener.processLinkUpdate("{\"id\":"));
-
-        verifyNoInteractions(linkUpdateNotificationService);
-    }
-
-    @Test
     void processLinkUpdateRejectsInvalidPayload() {
-        assertThrows(ConstraintViolationException.class, () -> listener.processLinkUpdate("""
-                {
-                  "id": 42,
-                  "url": "not-url",
-                  "description": "",
-                  "tgChatIds": []
-                }
-                """));
-
-        verifyNoInteractions(linkUpdateNotificationService);
+        assertThrows(
+                ConstraintViolationException.class,
+                () -> listener.processLinkUpdate(LinkUpdateEvent.newBuilder()
+                        .setId(42L)
+                        .setUrl("not-url")
+                        .setDescription("")
+                        .setTgChatIds(List.of())
+                        .build()));
     }
 }

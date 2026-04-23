@@ -15,6 +15,7 @@
     </description>
 
     <exclude-pattern>.*/backend/academy/linktracker/grpc/.*</exclude-pattern>
+    <exclude-pattern>.*/backend/academy/linktracker/kafka/avro/.*</exclude-pattern>
 
     <rule ref="category/java/bestpractices.xml/AvoidUsingHardCodedIP"/>
     <rule ref="category/java/bestpractices.xml/CheckResultSet"/>

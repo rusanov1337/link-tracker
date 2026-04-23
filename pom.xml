@@ -25,7 +25,6 @@
     </developers>
 
     <modules>
-        <module>ai-agent</module>
         <module>bot</module>
         <module>build-report-aggregate</module>
         <module>scrapper</module>
@@ -45,9 +44,12 @@
         <maven.version>3.9.12</maven.version>
 
         <awaitility.version>4.3.0</awaitility.version>
+        <avro.version>1.12.0</avro.version>
+        <avro-maven-plugin.version>1.12.1</avro-maven-plugin.version>
         <commons-codec.version>1.21.0</commons-codec.version>
         <commons-collections.version>4.5.0</commons-collections.version>
         <commons-compress.version>1.28.0</commons-compress.version>
+        <apicurio.version>2.6.13.Final</apicurio.version>
         <commons-io.version>2.21.0</commons-io.version>
         <commons-lang.version>3.20.0</commons-lang.version>
         <commons-text.version>1.15.0</commons-text.version>
@@ -61,7 +63,6 @@
         <opentelemetry-instrumentation.version>2.24.0</opentelemetry-instrumentation.version>
         <protobuf-java.version>4.33.4</protobuf-java.version>
         <spotbugs.version>4.9.8</spotbugs.version>
-        <spring-ai.version>2.0.0-M2</spring-ai.version>
         <spring-cloud.version>2025.1.1</spring-cloud.version>
         <spring-grpc.version>1.0.2</spring-grpc.version>
         <springdoc.version>3.0.1</springdoc.version>
@@ -96,13 +97,6 @@
                 <groupId>org.springframework.grpc</groupId>
                 <artifactId>spring-grpc-dependencies</artifactId>
                 <version>${spring-grpc.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-bom</artifactId>
-                <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -265,6 +259,11 @@
                     </configuration>
                 </plugin>
                 <plugin>
+                    <groupId>org.apache.avro</groupId>
+                    <artifactId>avro-maven-plugin</artifactId>
+                    <version>${avro-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>com.diffplug.spotless</groupId>
                     <artifactId>spotless-maven-plugin</artifactId>
                     <version>${spotless-maven-plugin.version}</version>
@@ -314,6 +313,9 @@
                         <printFailingErrors>true</printFailingErrors>
                         <linkXRef>false</linkXRef>
                         <outputDirectory>${project.reporting.outputDirectory}/pmd</outputDirectory>
+                        <excludeRoots>
+                            <excludeRoot>${project.build.directory}/generated-sources/avro</excludeRoot>
+                        </excludeRoots>
                         <excludes>
                             <exclude>backend/academy/linktracker/grpc/*.java</exclude>
                             <exclude>backend/academy/linktracker/grpc/**/*.java</exclude>
@@ -444,5 +446,14 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>with-ai-agent</id>
+            <modules>
+                <module>ai-agent</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>

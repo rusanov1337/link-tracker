@@ -9,20 +9,23 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 
 import backend.academy.linktracker.bot.properties.NotificationKafkaProperties;
 import backend.academy.linktracker.bot.service.RecentlyDeliveredLinkUpdateStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import backend.academy.linktracker.kafka.avro.LinkUpdateEvent;
+import backend.academy.linktracker.kafka.avro.ProcessingFailureReportEvent;
+import io.apicurio.registry.serde.avro.AvroKafkaDeserializer;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -31,6 +34,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
@@ -49,19 +54,26 @@ import org.wiremock.spring.EnableWireMock;
         })
 class BotKafkaConsumerIntegrationTest {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
     @Container
     static final KafkaContainer KAFKA_CONTAINER =
             new KafkaContainer(DockerImageName.parse("apache/kafka-native:3.8.0"));
 
+    @Container
+    static final GenericContainer<?> SCHEMA_REGISTRY_CONTAINER = new GenericContainer<>(
+                    DockerImageName.parse("apicurio/apicurio-registry:3.2.1"))
+            .withExposedPorts(8080)
+            .waitingFor(Wait.forHttp("/apis").forPort(8080).forStatusCode(200));
+
     @DynamicPropertySource
     static void kafkaProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.kafka.bootstrap-servers", KAFKA_CONTAINER::getBootstrapServers);
+        registry.add(
+                "spring.kafka.properties.apicurio.registry.url", BotKafkaConsumerIntegrationTest::getRegistryApiUrl);
     }
 
     @Autowired
-    private KafkaTemplate<String, String> kafkaTemplate;
+    @Qualifier("avroKafkaTemplate")
+    private KafkaTemplate<Object, Object> kafkaTemplate;
 
     @Autowired
     private NotificationKafkaProperties kafkaProperties;
@@ -75,21 +87,18 @@ class BotKafkaConsumerIntegrationTest {
     }
 
     @Test
-    void validLinkUpdateMessageIsDeliveredToTelegram() throws Exception {
+    void validLinkUpdateMessageIsDeliveredToTelegram() {
         stubTelegramSuccess();
 
         kafkaTemplate.send(
                 kafkaProperties.getTopics().getLinkUpdates(),
                 "42",
-                OBJECT_MAPPER.writeValueAsString(Map.of(
-                        "id",
-                        42L,
-                        "url",
-                        "https://github.com/octocat/hello-world",
-                        "description",
-                        "Updated",
-                        "tgChatIds",
-                        java.util.List.of(11L, 22L))));
+                LinkUpdateEvent.newBuilder()
+                        .setId(42L)
+                        .setUrl("https://github.com/octocat/hello-world")
+                        .setDescription("Updated")
+                        .setTgChatIds(List.of(11L, 22L))
+                        .build());
 
         Awaitility.await()
                 .atMost(Duration.ofSeconds(10))
@@ -97,14 +106,16 @@ class BotKafkaConsumerIntegrationTest {
     }
 
     @Test
-    void validProcessingFailureReportMessageIsDeliveredToTelegram() throws Exception {
+    void validProcessingFailureReportMessageIsDeliveredToTelegram() {
         stubTelegramSuccess();
 
         kafkaTemplate.send(
                 kafkaProperties.getTopics().getProcessingFailureReports(),
                 "report-11",
-                OBJECT_MAPPER.writeValueAsString(
-                        Map.of("description", "Failed links report", "tgChatIds", java.util.List.of(11L, 22L))));
+                ProcessingFailureReportEvent.newBuilder()
+                        .setDescription("Failed links report")
+                        .setTgChatIds(List.of(11L, 22L))
+                        .build());
 
         Awaitility.await()
                 .atMost(Duration.ofSeconds(10))
@@ -112,49 +123,53 @@ class BotKafkaConsumerIntegrationTest {
     }
 
     @Test
-    void malformedJsonIsSentToDlqWithoutTelegramDelivery() {
-        kafkaTemplate.send(kafkaProperties.getTopics().getLinkUpdates(), "bad-json", "{\"id\":");
+    void malformedPayloadIsSentToDlqWithoutTelegramDelivery() {
+        createByteArrayKafkaTemplate()
+                .send(kafkaProperties.getTopics().getLinkUpdates(), "bad-bytes", new byte[] {0x01, 0x02, 0x03});
 
-        var dlqRecord = awaitDlqRecord(kafkaProperties.getTopics().getLinkUpdatesDlq(), "bad-json");
+        var dlqRecord = awaitDlqRecord(kafkaProperties.getTopics().getLinkUpdatesDlq(), "bad-bytes");
 
-        org.junit.jupiter.api.Assertions.assertEquals("{\"id\":", dlqRecord.value());
+        org.junit.jupiter.api.Assertions.assertArrayEquals(new byte[] {0x01, 0x02, 0x03}, dlqRecord.value());
         verify(0, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
     }
 
     @Test
-    void invalidPayloadIsSentToDlqWithoutTelegramDelivery() throws Exception {
+    void invalidPayloadIsSentToDlqWithoutTelegramDelivery() {
         kafkaTemplate.send(
                 kafkaProperties.getTopics().getLinkUpdates(),
                 "invalid-payload",
-                OBJECT_MAPPER.writeValueAsString(
-                        Map.of("id", 42L, "url", "not-url", "description", "", "tgChatIds", List.of())));
+                LinkUpdateEvent.newBuilder()
+                        .setId(42L)
+                        .setUrl("not-url")
+                        .setDescription("")
+                        .setTgChatIds(List.of())
+                        .build());
 
         var dlqRecord = awaitDlqRecord(kafkaProperties.getTopics().getLinkUpdatesDlq(), "invalid-payload");
+        var payload = (LinkUpdateEvent) deserialize(dlqRecord);
 
-        org.junit.jupiter.api.Assertions.assertTrue(dlqRecord.value().contains("\"url\":\"not-url\""));
+        org.junit.jupiter.api.Assertions.assertEquals("not-url", payload.getUrl());
         verify(0, postRequestedFor(urlMatching("/bot[^/]+/sendMessage")));
     }
 
     @Test
-    void processingFailureIsRetriedAndThenSentToDlq() throws Exception {
+    void processingFailureIsRetriedAndThenSentToDlq() {
         stubTelegramFailure();
 
         kafkaTemplate.send(
                 kafkaProperties.getTopics().getLinkUpdates(),
                 "delivery-failure",
-                OBJECT_MAPPER.writeValueAsString(Map.of(
-                        "id",
-                        42L,
-                        "url",
-                        "https://github.com/octocat/hello-world",
-                        "description",
-                        "Updated",
-                        "tgChatIds",
-                        List.of(11L))));
+                LinkUpdateEvent.newBuilder()
+                        .setId(42L)
+                        .setUrl("https://github.com/octocat/hello-world")
+                        .setDescription("Updated")
+                        .setTgChatIds(List.of(11L))
+                        .build());
 
         var dlqRecord = awaitDlqRecord(kafkaProperties.getTopics().getLinkUpdatesDlq(), "delivery-failure");
+        var payload = (LinkUpdateEvent) deserialize(dlqRecord);
 
-        org.junit.jupiter.api.Assertions.assertTrue(dlqRecord.value().contains("\"id\":42"));
+        org.junit.jupiter.api.Assertions.assertEquals(42L, payload.getId());
         Awaitility.await()
                 .atMost(Duration.ofSeconds(10))
                 .untilAsserted(() -> verify(3, postRequestedFor(urlMatching("/bot[^/]+/sendMessage"))));
@@ -189,7 +204,7 @@ class BotKafkaConsumerIntegrationTest {
                                 """)));
     }
 
-    private ConsumerRecord<String, String> awaitDlqRecord(String topic, String key) {
+    private ConsumerRecord<String, byte[]> awaitDlqRecord(String topic, String key) {
         try (var consumer = createConsumer()) {
             consumer.subscribe(List.of(topic));
             return Awaitility.await()
@@ -198,18 +213,18 @@ class BotKafkaConsumerIntegrationTest {
         }
     }
 
-    private KafkaConsumer<String, String> createConsumer() {
+    private KafkaConsumer<String, byte[]> createConsumer() {
         var properties = new Properties();
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_CONTAINER.getBootstrapServers());
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "bot-kafka-test-" + UUID.randomUUID());
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
         return new KafkaConsumer<>(properties);
     }
 
-    private ConsumerRecord<String, String> pollMatchingRecord(KafkaConsumer<String, String> consumer, String key) {
+    private ConsumerRecord<String, byte[]> pollMatchingRecord(KafkaConsumer<String, byte[]> consumer, String key) {
         var records = consumer.poll(Duration.ofMillis(250));
         for (var record : records) {
             if (key.equals(record.key())) {
@@ -217,5 +232,34 @@ class BotKafkaConsumerIntegrationTest {
             }
         }
         return null;
+    }
+
+    private KafkaTemplate<String, byte[]> createByteArrayKafkaTemplate() {
+        var producerFactory =
+                new org.springframework.kafka.core.DefaultKafkaProducerFactory<String, byte[]>(java.util.Map.of(
+                        org.apache.kafka.clients.producer.ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                        KAFKA_CONTAINER.getBootstrapServers(),
+                        org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+                        org.apache.kafka.common.serialization.StringSerializer.class,
+                        org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                        org.apache.kafka.common.serialization.ByteArraySerializer.class));
+        return new KafkaTemplate<>(producerFactory);
+    }
+
+    private Object deserialize(ConsumerRecord<String, byte[]> record) {
+        try (var deserializer = new AvroKafkaDeserializer<>()) {
+            deserializer.configure(
+                    java.util.Map.of(
+                            "apicurio.registry.url",
+                            getRegistryApiUrl(),
+                            "apicurio.registry.use-specific-avro-reader",
+                            true),
+                    false);
+            return deserializer.deserialize(record.topic(), record.headers(), record.value());
+        }
+    }
+
+    private static String getRegistryApiUrl() {
+        return "http://" + SCHEMA_REGISTRY_CONTAINER.getHost() + ":" + SCHEMA_REGISTRY_CONTAINER.getMappedPort(8080);
     }
 }
