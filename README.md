@@ -4,7 +4,7 @@ LinkTracker – Telegram-бот, который отслеживает изме�
 
 Это шаблон проекта, который вам необходимо взять за основу для разработки своей системы.
 
-## Telegram API (HW1)
+## Telegram API
 
 ### Требования
 
@@ -63,7 +63,7 @@ java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
 - `/help`
 - любая неизвестная команда, например `/abc`
 
-## PostgreSQL, Bot и Scrapper (HW3-HW4)
+## PostgreSQL, Bot и Scrapper
 
 ### Дополнительно требуется
 
@@ -108,7 +108,7 @@ docker compose run --rm migrations
 
 ### Локальный запуск сервисов
 
-Для `hw-4` нужно запускать оба сервиса:
+Для локального запуска нужно запускать оба сервиса:
 
 ```bash
 java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
@@ -132,7 +132,7 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 
 При запуске `scrapper` из IDE миграции применяются автоматически.
 
-### Проверка hw-4 локально
+### Локальная проверка
 
 - запустите `bot` и `scrapper`
 - в Telegram выполните `/start`

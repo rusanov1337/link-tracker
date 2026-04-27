@@ -1,6 +1,8 @@
 package backend.academy.linktracker.scrapper.client.bot;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,9 +57,9 @@ class HttpBotUpdatesClientTest {
                 42L, URI.create("https://github.com/octocat/hello-world"), "Updated", List.of(1L, 2L)));
         var requestBody = parseRequestBody(requestBodyRef.get());
         assertTrue(requestBody.get("id") instanceof Number id && id.longValue() == 42L);
-        assertTrue("https://github.com/octocat/hello-world".equals(requestBody.get("url")));
-        assertTrue("Updated".equals(requestBody.get("description")));
-        assertTrue(List.of(1, 2).equals(requestBody.get("tgChatIds")));
+        assertEquals("https://github.com/octocat/hello-world", requestBody.get("url"));
+        assertEquals("Updated", requestBody.get("description"));
+        assertEquals(List.of(1, 2), requestBody.get("tgChatIds"));
     }
 
     @Test
@@ -84,7 +86,7 @@ class HttpBotUpdatesClientTest {
                 () -> unavailableClient.sendLinkUpdate(
                         1L, URI.create("https://github.com/octocat/hello-world"), "Updated", List.of(1L)));
         assertTrue(exception.getMessage().contains("Bot updates endpoint call failed"));
-        assertTrue(exception.getCause() != null);
+        assertNotNull(exception.getCause());
     }
 
     @Test
@@ -99,8 +101,8 @@ class HttpBotUpdatesClientTest {
 
         assertDoesNotThrow(() -> client.sendProcessingFailureReport("Failed links", List.of(1L, 2L)));
         var requestBody = parseRequestBody(requestBodyRef.get());
-        assertTrue("Failed links".equals(requestBody.get("description")));
-        assertTrue(List.of(1, 2).equals(requestBody.get("tgChatIds")));
+        assertEquals("Failed links", requestBody.get("description"));
+        assertEquals(List.of(1, 2), requestBody.get("tgChatIds"));
     }
 
     private Map<String, Object> parseRequestBody(String requestBody) {

@@ -17,7 +17,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class TrackDialogService {
 
-    public static final String CANCEL_COMMAND = "/cancel";
     public static final String START_PROMPT = "Отправьте ссылку, которую нужно отслеживать.";
     public static final String LINK_INVALID_RESPONSE = "Некорректная ссылка. Отправьте корректный URL или /cancel.";
     public static final String TAGS_PROMPT =

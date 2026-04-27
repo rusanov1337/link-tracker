@@ -45,7 +45,7 @@ public class BotCommandService {
             return Optional.empty();
         }
 
-        var chatId = message.chat().id().longValue();
+        long chatId = message.chat().id();
         Long userId = message.from() == null ? null : message.from().id();
         var messageText = message.text();
         var commandRequest = commandParser.parse(messageText, chatId, userId);

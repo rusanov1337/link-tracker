@@ -1,6 +1,11 @@
 package backend.academy.linktracker.bot.client.scrapper;
 
+import java.io.Serial;
+
 public class ScrapperClientException extends RuntimeException {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     public static final String CHAT_NOT_FOUND = "ChatNotFoundException";
     public static final String LINK_NOT_FOUND = "LinkNotFoundException";

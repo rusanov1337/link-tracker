@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.service.command;
 
 import backend.academy.linktracker.bot.service.BotCommandDefinition;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,7 +20,7 @@ public final class CommandRegistry {
         this.fallbackHandler = fallbackHandler;
         var sortedHandlers = handlers.stream()
                 .filter(handler -> handler != fallbackHandler)
-                .sorted((left, right) -> left.command().compareTo(right.command()))
+                .sorted(Comparator.comparing(CommandHandler::command))
                 .toList();
 
         this.handlersByCommand = sortedHandlers.stream()

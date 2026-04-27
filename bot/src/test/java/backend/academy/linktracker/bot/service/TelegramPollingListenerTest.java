@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -66,7 +67,7 @@ class TelegramPollingListenerTest {
 
         assertEquals(UpdatesListener.CONFIRMED_UPDATES_ALL, result);
         verify(telegramBot, org.mockito.Mockito.times(2)).execute(org.mockito.ArgumentMatchers.any(SendMessage.class));
-        assertEquals(1.0, meterRegistry.find("send_failures_total").counter().count());
+        assertEquals(1.0, sendFailuresCount(meterRegistry));
     }
 
     @Test
@@ -97,11 +98,17 @@ class TelegramPollingListenerTest {
 
         assertEquals(UpdatesListener.CONFIRMED_UPDATES_ALL, result);
         verify(telegramBot, org.mockito.Mockito.times(2)).execute(org.mockito.ArgumentMatchers.any(SendMessage.class));
-        assertEquals(1.0, meterRegistry.find("send_failures_total").counter().count());
+        assertEquals(1.0, sendFailuresCount(meterRegistry));
     }
 
     private BotMetricsService metrics(SimpleMeterRegistry meterRegistry) {
         return new BotMetricsService(meterRegistry);
+    }
+
+    private double sendFailuresCount(SimpleMeterRegistry meterRegistry) {
+        var counter = meterRegistry.find("send_failures_total").counter();
+        assertNotNull(counter);
+        return counter.count();
     }
 
     private TelegramProperties telegramProperties() {

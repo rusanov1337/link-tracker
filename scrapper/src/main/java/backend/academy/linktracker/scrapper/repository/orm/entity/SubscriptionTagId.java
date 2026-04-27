@@ -2,6 +2,7 @@ package backend.academy.linktracker.scrapper.repository.orm.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import java.io.Serial;
 import java.io.Serializable;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -14,6 +15,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @EqualsAndHashCode
 public class SubscriptionTagId implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     @Column(name = "chat_id", nullable = false)
     private Long chatId;

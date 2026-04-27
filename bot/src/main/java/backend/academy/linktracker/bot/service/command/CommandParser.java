@@ -12,7 +12,7 @@ public class CommandParser {
         }
 
         var normalizedText = text.strip();
-        if (normalizedText.isEmpty() || !normalizedText.startsWith("/")) {
+        if (!normalizedText.startsWith("/")) {
             return Optional.empty();
         }
 

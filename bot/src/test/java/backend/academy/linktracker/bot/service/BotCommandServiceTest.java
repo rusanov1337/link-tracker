@@ -1,6 +1,7 @@
 package backend.academy.linktracker.bot.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -101,23 +102,19 @@ class BotCommandServiceTest {
         service.createResponse(updateWithText("/start"));
         service.createResponse(updateWithText("/abracadabra"));
 
-        assertEquals(
-                1.0,
-                meterRegistry
-                        .find("commands_total")
-                        .tag("command", "/start")
-                        .tag("status", "success")
-                        .counter()
-                        .count());
-        assertEquals(
-                1.0,
-                meterRegistry
-                        .find("commands_total")
-                        .tag("command", "unknown")
-                        .tag("status", "success")
-                        .counter()
-                        .count());
+        assertEquals(1.0, counterCount(meterRegistry, "/start", "success"));
+        assertEquals(1.0, counterCount(meterRegistry, "unknown", "success"));
         verify(scrapperClient).ensureChatRegistered(12345L);
+    }
+
+    private double counterCount(SimpleMeterRegistry meterRegistry, String command, String status) {
+        var counter = meterRegistry
+                .find("commands_total")
+                .tag("command", command)
+                .tag("status", status)
+                .counter();
+        assertNotNull(counter);
+        return counter.count();
     }
 
     private Update updateWithText(String text) {
