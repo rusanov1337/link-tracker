@@ -24,6 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "app.scheduler.enabled=false",
+            "app.cache.tracked-links.enabled=false",
             "springdoc.api-docs.enabled=false",
             "springdoc.swagger-ui.enabled=false"
         })

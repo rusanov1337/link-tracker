@@ -38,18 +38,21 @@ public class ScrapperLinkService {
     private final LinkSubscriptionRepository linkSubscriptionRepository;
     private final List<ExternalLinkClient> externalLinkClients;
     private final DatabaseProperties databaseProperties;
+    private final TrackedLinksCacheService trackedLinksCacheService;
 
     public ScrapperLinkService(
             ChatRepository chatRepository,
             TrackedLinkRepository trackedLinkRepository,
             LinkSubscriptionRepository linkSubscriptionRepository,
             List<ExternalLinkClient> externalLinkClients,
-            DatabaseProperties databaseProperties) {
+            DatabaseProperties databaseProperties,
+            TrackedLinksCacheService trackedLinksCacheService) {
         this.chatRepository = chatRepository;
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
         this.externalLinkClients = externalLinkClients;
         this.databaseProperties = databaseProperties;
+        this.trackedLinksCacheService = trackedLinksCacheService;
     }
 
     @Transactional
@@ -82,12 +85,30 @@ public class ScrapperLinkService {
                 .addKeyValue("orphanLinksToCheck", trackedLinkIdsToCheck.size())
                 .addKeyValue("success", true)
                 .log("Chat deleted");
+        trackedLinksCacheService.evict(chatId);
     }
 
     @Transactional(readOnly = true)
     public ListLinksResponse getLinks(long chatId) {
         ensureChatExists(chatId);
+        var cachedResponse = trackedLinksCacheService.get(chatId);
+        if (cachedResponse.isPresent()) {
+            var response = cachedResponse.orElseThrow();
+            LOGGER.atInfo()
+                    .addKeyValue("operation", "getLinks")
+                    .addKeyValue("chatId", chatId)
+                    .addKeyValue("cacheHit", true)
+                    .addKeyValue("linksCount", response.size())
+                    .log("Tracked links listed from cache");
+            return response;
+        }
 
+        var response = loadLinks(chatId);
+        trackedLinksCacheService.put(chatId, response);
+        return response;
+    }
+
+    private ListLinksResponse loadLinks(long chatId) {
         var links = new ArrayList<LinkResponse>();
         var offset = 0;
         while (true) {
@@ -121,6 +142,7 @@ public class ScrapperLinkService {
         LOGGER.atInfo()
                 .addKeyValue("operation", "getLinks")
                 .addKeyValue("chatId", chatId)
+                .addKeyValue("cacheHit", false)
                 .addKeyValue("linksCount", links.size())
                 .log("Tracked links listed");
         return new ListLinksResponse(List.copyOf(links), links.size());
@@ -152,6 +174,7 @@ public class ScrapperLinkService {
                 .addKeyValue("filtersCount", subscription.filters().size())
                 .addKeyValue("success", true)
                 .log("Link tracked");
+        trackedLinksCacheService.evict(chatId);
         return new LinkResponse(
                 trackedLink.id(), trackedLink.url().toString(), subscription.tags(), subscription.filters());
     }
@@ -178,6 +201,7 @@ public class ScrapperLinkService {
                 .addKeyValue("url", trackedLink.url())
                 .addKeyValue("success", true)
                 .log("Link untracked");
+        trackedLinksCacheService.evict(chatId);
         return new LinkResponse(
                 trackedLink.id(), trackedLink.url().toString(), subscription.tags(), subscription.filters());
     }

@@ -22,6 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(
         properties = {
             "app.scheduler.enabled=false",
+            "app.cache.tracked-links.enabled=false",
             "app.grpc.server.enabled=true",
             "app.grpc.server.port=19091",
             "springdoc.api-docs.enabled=false",

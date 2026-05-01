@@ -33,6 +33,11 @@ spring:
     change-log: classpath:/migrations/master.xml
     enabled: true
 
+management:
+  health:
+    redis:
+      enabled: ${VALKEY_HEALTH_ENABLED:false}
+
 app:
   cache:
     tracked-links:
