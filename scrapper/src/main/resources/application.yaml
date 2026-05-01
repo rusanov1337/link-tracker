@@ -15,6 +15,12 @@ spring:
       value-serializer: io.apicurio.registry.serde.avro.AvroKafkaSerializer
       properties:
         apicurio.registry.auto-register: ${KAFKA_AUTO_REGISTER_SCHEMAS:true}
+  data:
+    redis:
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      password: ${VALKEY_PASSWORD:}
+      timeout: ${VALKEY_TIMEOUT:2s}
   datasource:
     url: ${SCRAPPER_DB_URL:jdbc:postgresql://localhost:5432/link_tracker}
     username: ${SCRAPPER_DB_USERNAME:postgres}
@@ -28,6 +34,11 @@ spring:
     enabled: true
 
 app:
+  cache:
+    tracked-links:
+      enabled: ${TRACKED_LINKS_CACHE_ENABLED:true}
+      ttl: ${TRACKED_LINKS_CACHE_TTL:10m}
+      key-prefix: ${TRACKED_LINKS_CACHE_KEY_PREFIX:tracked-links}
   kafka:
     topics:
       link-updates: ${KAFKA_LINK_UPDATES_TOPIC:link-updates}
