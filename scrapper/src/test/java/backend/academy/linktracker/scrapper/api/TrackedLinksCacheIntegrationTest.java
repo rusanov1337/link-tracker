@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,7 +73,10 @@ class TrackedLinksCacheIntegrationTest extends DatabaseCleanupSupport {
     void setupCacheTest() {
         this.httpClient =
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-        redisTemplate.getConnectionFactory().getConnection().serverCommands().flushDb();
+        var connectionFactory = Objects.requireNonNull(redisTemplate.getConnectionFactory());
+        try (var connection = connectionFactory.getConnection()) {
+            connection.serverCommands().flushDb();
+        }
     }
 
     @Test

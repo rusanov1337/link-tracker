@@ -63,7 +63,7 @@ java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
 - `/help`
 - любая неизвестная команда, например `/abc`
 
-## PostgreSQL, Kafka, Bot и Scrapper
+## PostgreSQL, Kafka, Valkey, Bot и Scrapper
 
 ### Дополнительно требуется
 
@@ -85,6 +85,10 @@ export BOT_BASE_URL="http://localhost:8080"
 export BOT_TRANSPORT="kafka"
 export KAFKA_BOOTSTRAP_SERVERS="localhost:19092"
 export KAFKA_SCHEMA_REGISTRY_URL="http://localhost:8085"
+export VALKEY_HOST="localhost"
+export VALKEY_PORT="6379"
+export VALKEY_CLUSTER_ENABLED="true"
+export VALKEY_CLUSTER_NODES="localhost:6379,localhost:6380,localhost:6381"
 ```
 
 При необходимости можно также задать:
@@ -98,12 +102,16 @@ export SCRAPPER_SCHEDULER_PARALLELISM="1"
 export KAFKA_CONSUMER_MAX_ATTEMPTS="3"
 export KAFKA_CONSUMER_RETRY_BACKOFF="1s"
 export KAFKA_AUTO_REGISTER_SCHEMAS="true"
+export TRACKED_LINKS_CACHE_ENABLED="true"
+export TRACKED_LINKS_CACHE_TTL="10m"
+export TRACKED_LINKS_CACHE_KEY_PREFIX="tracked-links"
+export VALKEY_CLUSTER_MAX_REDIRECTS="3"
 ```
 
 ### Локальный запуск инфраструктуры
 
 ```bash
-docker compose up -d postgres kafka-1 kafka-2 kafka-3 kafka-init schema-registry
+docker compose up -d postgres kafka-1 kafka-2 kafka-3 kafka-init schema-registry valkey-1 valkey-2 valkey-3 valkey-init
 ```
 
 ### Применение миграций отдельным контейнером
@@ -126,7 +134,7 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 
 Если запускаете из IDE:
 
-- сначала поднимите `postgres`, `kafka-*`, `kafka-init` и `schema-registry` через `docker compose`
+- сначала поднимите `postgres`, `kafka-*`, `kafka-init`, `schema-registry`, `valkey-*` и `valkey-init` через `docker compose`
 - затем запустите `bot`
 - затем запустите `scrapper`
 
@@ -158,6 +166,23 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 - `Transactional Outbox` на стороне `scrapper`
 - 3-брокерный Kafka-кластер в `docker-compose`
 
+### Кэширование списка ссылок
+
+`scrapper` кэширует ответ `GET /links` в Valkey. Ключ строится из заголовка `Tg-Chat-Id`, значение хранится как JSON с телом ответа.
+
+Кэш автоматически инвалидируется при добавлении и удалении отслеживаемых ссылок. TTL, префикс ключа и параметры подключения задаются через конфигурацию:
+
+- `TRACKED_LINKS_CACHE_ENABLED`
+- `TRACKED_LINKS_CACHE_TTL`
+- `TRACKED_LINKS_CACHE_KEY_PREFIX`
+- `VALKEY_HOST`
+- `VALKEY_PORT`
+- `VALKEY_CLUSTER_ENABLED`
+- `VALKEY_CLUSTER_NODES`
+- `VALKEY_CLUSTER_MAX_REDIRECTS`
+
+Valkey-кластер в `docker-compose` состоит из трех нод без реплик. Слоты распределяются между тремя master-нодами, данные сохраняются в named volumes.
+
 ### Локальная проверка
 
 - запустите `bot` и `scrapper`
@@ -187,6 +212,14 @@ docker compose ps
 - `replication-factor=3` для отказоустойчивости к падению одного брокера
 - `min.insync.replicas=2` вместе с `acks=all` для более надежной записи
 
+### Проверка Valkey-кластера
+
+```bash
+docker compose exec valkey-1 valkey-cli cluster info
+```
+
+В рабочем состоянии команда должна вернуть `cluster_state:ok`.
+
 ### Переключение доступа к БД
 
 - `SCRAPPER_DB_ACCESS_TYPE=SQL`
@@ -206,5 +239,13 @@ docker compose ps
 ```
 
 Для интеграционных тестов нужен запущенный Docker.
+
+### Локальный тест для проверки кэширования Scrapper -> Valkey
+
+```bash
+./mvnw -pl scrapper -am -Dtest=TrackedLinksCacheIntegrationTest test
+```
+
+Тест поднимает Valkey через Testcontainers и проверяет запись JSON-ответа, cache hit, инвалидацию при добавлении/удалении ссылки и истечение TTL.
 
 Полезную для разработки проекта информацию вы можете найти в файле [HELP.md](./HELP.md).
