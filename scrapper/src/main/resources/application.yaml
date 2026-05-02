@@ -44,6 +44,11 @@ app:
       enabled: ${TRACKED_LINKS_CACHE_ENABLED:true}
       ttl: ${TRACKED_LINKS_CACHE_TTL:10m}
       key-prefix: ${TRACKED_LINKS_CACHE_KEY_PREFIX:tracked-links}
+  valkey:
+    cluster:
+      enabled: ${VALKEY_CLUSTER_ENABLED:false}
+      nodes: ${VALKEY_CLUSTER_NODES:}
+      max-redirects: ${VALKEY_CLUSTER_MAX_REDIRECTS:3}
   kafka:
     topics:
       link-updates: ${KAFKA_LINK_UPDATES_TOPIC:link-updates}
