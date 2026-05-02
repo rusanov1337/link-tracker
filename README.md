@@ -105,6 +105,8 @@ export KAFKA_AUTO_REGISTER_SCHEMAS="true"
 export TRACKED_LINKS_CACHE_ENABLED="true"
 export TRACKED_LINKS_CACHE_TTL="10m"
 export TRACKED_LINKS_CACHE_KEY_PREFIX="tracked-links"
+export TRACKED_LINKS_CLIENT_SIDE_CACHE_ENABLED="false"
+export TRACKED_LINKS_CLIENT_SIDE_CACHE_MAX_SIZE="1024"
 export VALKEY_CLUSTER_MAX_REDIRECTS="3"
 ```
 
@@ -175,6 +177,8 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 - `TRACKED_LINKS_CACHE_ENABLED`
 - `TRACKED_LINKS_CACHE_TTL`
 - `TRACKED_LINKS_CACHE_KEY_PREFIX`
+- `TRACKED_LINKS_CLIENT_SIDE_CACHE_ENABLED`
+- `TRACKED_LINKS_CLIENT_SIDE_CACHE_MAX_SIZE`
 - `VALKEY_HOST`
 - `VALKEY_PORT`
 - `VALKEY_CLUSTER_ENABLED`
@@ -182,6 +186,7 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 - `VALKEY_CLUSTER_MAX_REDIRECTS`
 
 Valkey-кластер в `docker-compose` состоит из трех нод без реплик. Слоты распределяются между тремя master-нодами, данные сохраняются в named volumes.
+Client-side cache включается отдельно и работает для standalone-подключения к Valkey; при включенном `VALKEY_CLUSTER_ENABLED` используется только общий кэш в Valkey.
 
 ### Локальная проверка
 
@@ -246,6 +251,6 @@ docker compose exec valkey-1 valkey-cli cluster info
 ./mvnw -pl scrapper -am -Dtest=TrackedLinksCacheIntegrationTest test
 ```
 
-Тест поднимает Valkey через Testcontainers и проверяет запись JSON-ответа, cache hit, инвалидацию при добавлении/удалении ссылки и истечение TTL.
+Тест поднимает Valkey через Testcontainers и проверяет запись JSON-ответа, cache hit, инвалидацию при добавлении/удалении ссылки, истечение TTL и invalidation-события для client-side cache.
 
 Полезную для разработки проекта информацию вы можете найти в файле [HELP.md](./HELP.md).

@@ -7,23 +7,29 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
-public class TrackedLinksCacheService {
+public final class TrackedLinksCacheService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TrackedLinksCacheService.class);
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final TrackedLinksCacheProperties properties;
+    private final Optional<TrackedLinksClientSideCache> clientSideCache;
 
-    public TrackedLinksCacheService(StringRedisTemplate redisTemplate, TrackedLinksCacheProperties properties) {
+    public TrackedLinksCacheService(
+            StringRedisTemplate redisTemplate,
+            TrackedLinksCacheProperties properties,
+            ObjectProvider<TrackedLinksClientSideCache> clientSideCache) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
         this.properties = properties;
+        this.clientSideCache = Optional.ofNullable(clientSideCache.getIfAvailable());
     }
 
     public Optional<ListLinksResponse> get(long chatId) {
@@ -33,7 +39,9 @@ public class TrackedLinksCacheService {
 
         var cacheKey = cacheKey(chatId);
         try {
-            var cachedJson = redisTemplate.opsForValue().get(cacheKey);
+            var cachedJson = clientSideCache
+                    .map(cache -> cache.get(cacheKey))
+                    .orElseGet(() -> redisTemplate.opsForValue().get(cacheKey));
             if (cachedJson == null) {
                 return Optional.empty();
             }
@@ -68,6 +76,7 @@ public class TrackedLinksCacheService {
         try {
             var responseJson = objectMapper.writeValueAsString(response);
             redisTemplate.opsForValue().set(cacheKey, responseJson, properties.ttl());
+            clientSideCache.ifPresent(cache -> cache.put(cacheKey, responseJson));
         } catch (JsonProcessingException exception) {
             LOGGER.atWarn()
                     .addKeyValue("operation", "trackedLinksCacheWrite")
@@ -93,6 +102,7 @@ public class TrackedLinksCacheService {
         var cacheKey = cacheKey(chatId);
         try {
             redisTemplate.delete(cacheKey);
+            clientSideCache.ifPresent(cache -> cache.evict(cacheKey));
         } catch (DataAccessException exception) {
             LOGGER.atWarn()
                     .addKeyValue("operation", "trackedLinksCacheEvict")

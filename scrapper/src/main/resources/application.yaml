@@ -44,6 +44,9 @@ app:
       enabled: ${TRACKED_LINKS_CACHE_ENABLED:true}
       ttl: ${TRACKED_LINKS_CACHE_TTL:10m}
       key-prefix: ${TRACKED_LINKS_CACHE_KEY_PREFIX:tracked-links}
+      client-side:
+        enabled: ${TRACKED_LINKS_CLIENT_SIDE_CACHE_ENABLED:false}
+        max-size: ${TRACKED_LINKS_CLIENT_SIDE_CACHE_MAX_SIZE:1024}
   valkey:
     cluster:
       enabled: ${VALKEY_CLUSTER_ENABLED:false}

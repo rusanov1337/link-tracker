@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
+import backend.academy.linktracker.scrapper.service.TrackedLinksClientSideCache;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Objects;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +36,8 @@ import org.testcontainers.utility.DockerImageName;
             "app.cache.tracked-links.enabled=true",
             "app.cache.tracked-links.ttl=1s",
             "app.cache.tracked-links.key-prefix=test-tracked-links",
+            "app.cache.tracked-links.client-side.enabled=true",
+            "app.cache.tracked-links.client-side.max-size=16",
             "springdoc.api-docs.enabled=false",
             "springdoc.swagger-ui.enabled=false"
         })
@@ -67,15 +69,18 @@ class TrackedLinksCacheIntegrationTest extends DatabaseCleanupSupport {
     @Autowired
     private JdbcClient jdbcClient;
 
+    @Autowired
+    private TrackedLinksClientSideCache clientSideCache;
+
     private HttpClient httpClient;
 
     @BeforeEach
     void setupCacheTest() {
         this.httpClient =
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-        var connectionFactory = Objects.requireNonNull(redisTemplate.getConnectionFactory());
-        try (var connection = connectionFactory.getConnection()) {
-            connection.serverCommands().flushDb();
+        var keys = redisTemplate.keys("test-tracked-links:*");
+        if (!keys.isEmpty()) {
+            redisTemplate.delete(keys);
         }
     }
 
@@ -148,6 +153,19 @@ class TrackedLinksCacheIntegrationTest extends DatabaseCleanupSupport {
 
         Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(cachedJson(105L))
                 .isNull());
+    }
+
+    @Test
+    void clientSideCacheInvalidatesLocalValueAfterValkeyUpdate() {
+        var cacheKey = cacheKey(106L);
+        redisTemplate.opsForValue().set(cacheKey, "{\"size\":1}");
+
+        assertThat(clientSideCache.get(cacheKey)).isEqualTo("{\"size\":1}");
+
+        redisTemplate.opsForValue().set(cacheKey, "{\"size\":2}");
+
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(clientSideCache.get(cacheKey))
+                .isEqualTo("{\"size\":2}"));
     }
 
     private String cachedJson(long chatId) {
