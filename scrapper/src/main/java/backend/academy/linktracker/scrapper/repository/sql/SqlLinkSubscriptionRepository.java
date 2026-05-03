@@ -13,6 +13,7 @@ import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.support.SqlArrayValue;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -273,25 +274,25 @@ public class SqlLinkSubscriptionRepository implements LinkSubscriptionRepository
                 .append(valueColumn)
                 .append(" from ")
                 .append(tableName)
-                .append(" where ");
-        for (var index = 0; index < keys.size(); index++) {
-            if (index > 0) {
-                sql.append(" or ");
-            }
-            sql.append("(chat_id = :chatId")
-                    .append(index)
-                    .append(" and link_id = :linkId")
-                    .append(index)
-                    .append(")");
-        }
+                .append("""
+                     join unnest(:chatIds, :linkIds) as key(chat_id, link_id) using (chat_id, link_id)
+                    """);
         sql.append(" order by chat_id, link_id, ").append(orderColumn);
 
-        var statement = jdbcClient.sql(sql.toString());
-        for (var index = 0; index < keys.size(); index++) {
-            var key = keys.get(index);
-            statement = statement.param("chatId" + index, key.chatId()).param("linkId" + index, key.linkId());
-        }
-        return statement.query(rowMapper).list();
+        return jdbcClient
+                .sql(sql.toString())
+                .param(
+                        "chatIds",
+                        longArray(keys.stream().map(SubscriptionKey::chatId).toArray(Long[]::new)))
+                .param(
+                        "linkIds",
+                        longArray(keys.stream().map(SubscriptionKey::linkId).toArray(Long[]::new)))
+                .query(rowMapper)
+                .list();
+    }
+
+    private SqlArrayValue longArray(Long[] values) {
+        return new SqlArrayValue("bigint", (Object[]) values);
     }
 
     private Map<SubscriptionKey, List<String>> groupValues(List<SubscriptionValue> values) {
