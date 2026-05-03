@@ -245,40 +245,50 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>e2e-jar</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <phase>test-compile</phase>
-                        <configuration>
-                            <classifier>e2e</classifier>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- To build OCI image: https://docs.spring.io/spring-boot/maven-plugin/build-image.html -->
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>repackage-e2e-jar</id>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                        <phase>test-compile</phase>
-                        <configuration>
-                            <classifier>e2e</classifier>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>with-e2e</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>e2e-jar</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <phase>test-compile</phase>
+                                <configuration>
+                                    <classifier>e2e</classifier>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- To build OCI image: https://docs.spring.io/spring-boot/maven-plugin/build-image.html -->
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>repackage-e2e-jar</id>
+                                <goals>
+                                    <goal>repackage</goal>
+                                </goals>
+                                <phase>test-compile</phase>
+                                <configuration>
+                                    <classifier>e2e</classifier>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
