@@ -202,7 +202,7 @@ docker compose ps
 Тест, который можно запускать локально для проверки полного пути сообщения:
 
 ```bash
-./mvnw -pl build-report-aggregate -am -Dtest=BotScrapperContainerE2ETest -Dsurefire.failIfNoSpecifiedTests=false test
+./mvnw -Pwith-e2e -pl build-report-aggregate -am -Dtest=BotScrapperContainerE2ETest -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 Для интеграционных тестов нужен запущенный Docker.
