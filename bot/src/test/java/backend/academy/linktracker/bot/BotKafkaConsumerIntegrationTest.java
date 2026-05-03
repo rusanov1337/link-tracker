@@ -123,9 +123,15 @@ class BotKafkaConsumerIntegrationTest {
     }
 
     @Test
-    void malformedPayloadIsSentToDlqWithoutTelegramDelivery() {
-        createByteArrayKafkaTemplate()
-                .send(kafkaProperties.getTopics().getLinkUpdates(), "bad-bytes", new byte[] {0x01, 0x02, 0x03});
+    void malformedPayloadIsSentToDlqWithoutTelegramDelivery() throws Exception {
+        var byteArrayKafkaTemplate = createByteArrayKafkaTemplate();
+        try {
+            byteArrayKafkaTemplate
+                    .send(kafkaProperties.getTopics().getLinkUpdates(), "bad-bytes", new byte[] {0x01, 0x02, 0x03})
+                    .get(10, java.util.concurrent.TimeUnit.SECONDS);
+        } finally {
+            byteArrayKafkaTemplate.destroy();
+        }
 
         var dlqRecord = awaitDlqRecord(kafkaProperties.getTopics().getLinkUpdatesDlq(), "bad-bytes");
 

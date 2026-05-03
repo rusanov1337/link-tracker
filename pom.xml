@@ -26,7 +26,6 @@
 
     <modules>
         <module>bot</module>
-        <module>build-report-aggregate</module>
         <module>scrapper</module>
     </modules>
 
@@ -452,6 +451,12 @@
             <id>with-ai-agent</id>
             <modules>
                 <module>ai-agent</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>with-e2e</id>
+            <modules>
+                <module>build-report-aggregate</module>
             </modules>
         </profile>
     </profiles>

@@ -188,6 +188,57 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 Valkey-кластер в `docker-compose` состоит из трех нод без реплик. Слоты распределяются между тремя master-нодами, данные сохраняются в named volumes.
 Client-side cache включается отдельно и работает для standalone-подключения к Valkey; при включенном `VALKEY_CLUSTER_ENABLED` используется только общий кэш в Valkey.
 
+### Нагрузочная проверка кэширования
+
+Сценарий находится в `load-tests/tracked-links-cache`. Он заполняет БД 1000 чатами и 100000 подписками, затем запускает k6 с профилем:
+
+- 24 VU: `2 * 12` ядер локальной машины
+- ramp up: 1 минута
+- stage: 5 минут
+- ramp down: 30 секунд
+- пауза между итерациями: 50 мс
+- 99% операций: `GET /links`
+- 1% итераций: `POST /links` и `DELETE /links` для проверки инвалидации
+
+Запуск подготовки данных:
+
+```bash
+docker compose up -d postgres valkey-1 valkey-2 valkey-3 valkey-init
+docker compose run --rm migrations
+docker compose exec -T postgres psql -U postgres -d link_tracker < load-tests/tracked-links-cache/seed.sql
+```
+
+Запуск k6:
+
+```bash
+docker run --rm --network host \
+  -e BASE_URL="http://localhost:8081" \
+  -e VUS="24" \
+  -e RAMP_UP_DURATION="1m" \
+  -e STAGE_DURATION="5m" \
+  -e RAMP_DOWN_DURATION="30s" \
+  -e WRITE_RATIO="0.01" \
+  -v "$PWD/load-tests/tracked-links-cache:/scripts:ro" \
+  -v "$PWD/target/load-test-results:/results" \
+  grafana/k6:0.55.0 run --summary-export=/results/result.json /scripts/tracked-links-cache.js
+```
+
+Результаты локального прогона:
+
+|           Режим            |     Запрос      |    RPS | Среднее, мс | p50, мс | p99, мс |    200 | 502/504 | 500 | Частые ошибки |
+|----------------------------|-----------------|-------:|------------:|--------:|--------:|-------:|--------:|----:|---------------|
+| Без кэша                   | `GET /links`    | 376.99 |        5.06 |    5.04 |    7.04 | 147041 |       0 |   0 | Нет           |
+| Без кэша                   | `POST /links`   |   3.79 |       10.88 |   14.28 |   18.43 |   1477 |       0 |   0 | Нет           |
+| Без кэша                   | `DELETE /links` |   3.79 |        2.52 |    2.21 |    6.58 |   1477 |       0 |   0 | Нет           |
+| Valkey cluster             | `GET /links`    | 397.73 |        2.23 |    1.05 |    6.95 | 155130 |       0 |   0 | Нет           |
+| Valkey cluster             | `POST /links`   |   4.13 |        8.10 |    4.74 |   17.55 |   1611 |       0 |   0 | Нет           |
+| Valkey cluster             | `DELETE /links` |   4.13 |        2.53 |    2.39 |    5.67 |   1611 |       0 |   0 | Нет           |
+| Valkey + client-side cache | `GET /links`    | 399.20 |        1.96 |    1.91 |    5.41 | 155700 |       0 |   0 | Нет           |
+| Valkey + client-side cache | `POST /links`   |   4.03 |       10.49 |   13.73 |   18.98 |   1572 |       0 |   0 | Нет           |
+| Valkey + client-side cache | `DELETE /links` |   4.03 |        2.58 |    2.44 |    4.82 |   1572 |       0 |   0 | Нет           |
+
+Вывод: кэширование в Valkey снижает среднее время `GET /links` с 5.06 мс до 2.23 мс и медиану с 5.04 мс до 1.05 мс. Client-side cache в standalone-режиме дополнительно снижает среднее время чтения до 1.96 мс и p99 до 5.41 мс. Мутации не ускоряются так же заметно, потому что они выполняют запись в БД и инвалидацию кэша.
+
 ### Локальная проверка
 
 - запустите `bot` и `scrapper`
@@ -235,17 +286,17 @@ docker compose exec valkey-1 valkey-cli cluster info
 - `SCRAPPER_SCHEDULER_BATCH_SIZE` — размер батча ссылок
 - `SCRAPPER_SCHEDULER_PARALLELISM` — количество потоков для обработки батча
 
-### Локальный тест для проверки интеграции Scrapper -> Kafka -> Bot
+### Локальный тест для проверки интеграции Scrapper → Kafka → Bot
 
 Тест, который можно запускать локально для проверки полного пути сообщения:
 
 ```bash
-./mvnw -pl build-report-aggregate -am -Dtest=BotScrapperContainerE2ETest -Dsurefire.failIfNoSpecifiedTests=false test
+./mvnw -Pwith-e2e -pl build-report-aggregate -am -Dtest=BotScrapperContainerE2ETest -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 Для интеграционных тестов нужен запущенный Docker.
 
-### Локальный тест для проверки кэширования Scrapper -> Valkey
+### Локальный тест для проверки кэширования Scrapper → Valkey
 
 ```bash
 ./mvnw -pl scrapper -am -Dtest=TrackedLinksCacheIntegrationTest test
