@@ -1,11 +1,13 @@
 package backend.academy.linktracker.scrapper.client.external;
 
+import backend.academy.linktracker.scrapper.client.http.HttpResilienceExecutor;
 import backend.academy.linktracker.scrapper.domain.DetectedUpdate;
 import backend.academy.linktracker.scrapper.domain.LinkCheckResult;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.domain.UpdateEventType;
 import backend.academy.linktracker.scrapper.domain.UpdateProvider;
 import backend.academy.linktracker.scrapper.properties.StackoverflowProperties;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -30,15 +32,19 @@ import org.springframework.web.client.RestClientResponseException;
 public class StackoverflowExternalLinkClient implements ExternalLinkClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StackoverflowExternalLinkClient.class);
+    private static final String CLIENT_NAME = "stackoverflow";
 
     private final RestClient restClient;
     private final StackoverflowProperties stackoverflowProperties;
+    private final HttpResilienceExecutor resilienceExecutor;
 
     public StackoverflowExternalLinkClient(
             @Qualifier("stackoverflowRestClient") RestClient restClient,
-            StackoverflowProperties stackoverflowProperties) {
+            StackoverflowProperties stackoverflowProperties,
+            HttpResilienceExecutor resilienceExecutor) {
         this.restClient = restClient;
         this.stackoverflowProperties = stackoverflowProperties;
+        this.resilienceExecutor = resilienceExecutor;
     }
 
     @Override
@@ -93,6 +99,12 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
                     .addKeyValue("url", trackedLink.url())
                     .addKeyValue("status", exception.getStatusCode().value())
                     .log("StackOverflow request failed");
+            return LinkCheckResult.failure();
+        } catch (CallNotPermittedException exception) {
+            LOGGER.atWarn()
+                    .addKeyValue("provider", "stackoverflow")
+                    .addKeyValue("url", trackedLink.url())
+                    .log("StackOverflow circuit breaker is open");
             return LinkCheckResult.failure();
         } catch (RestClientException | IllegalArgumentException exception) {
             LOGGER.atWarn()
@@ -171,7 +183,7 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
     }
 
     private String executeGet(String path, String id, boolean includeBody) {
-        return restClient
+        return resilienceExecutor.execute(CLIENT_NAME, () -> restClient
                 .get()
                 .uri(uriBuilder -> {
                     uriBuilder.path(path);
@@ -190,7 +202,7 @@ public class StackoverflowExternalLinkClient implements ExternalLinkClient {
                     return uriBuilder.build(id);
                 })
                 .retrieve()
-                .body(String.class);
+                .body(String.class));
     }
 
     @SuppressWarnings("unchecked")

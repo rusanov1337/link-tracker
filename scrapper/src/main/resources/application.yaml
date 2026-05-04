@@ -52,6 +52,17 @@ app:
       enabled: ${VALKEY_CLUSTER_ENABLED:false}
       nodes: ${VALKEY_CLUSTER_NODES:}
       max-redirects: ${VALKEY_CLUSTER_MAX_REDIRECTS:3}
+  resilience:
+    retry:
+      max-attempts: ${HTTP_RETRY_MAX_ATTEMPTS:3}
+      backoff: ${HTTP_RETRY_BACKOFF:500ms}
+      retryable-statuses: ${HTTP_RETRYABLE_STATUSES:500,502,503,504}
+    circuit-breaker:
+      sliding-window-size: ${HTTP_CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE:10}
+      minimum-number-of-calls: ${HTTP_CIRCUIT_BREAKER_MINIMUM_NUMBER_OF_CALLS:5}
+      failure-rate-threshold: ${HTTP_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD:50}
+      permitted-calls-in-half-open-state: ${HTTP_CIRCUIT_BREAKER_HALF_OPEN_CALLS:5}
+      wait-duration-in-open-state: ${HTTP_CIRCUIT_BREAKER_OPEN_WAIT:5s}
   kafka:
     topics:
       link-updates: ${KAFKA_LINK_UPDATES_TOPIC:link-updates}

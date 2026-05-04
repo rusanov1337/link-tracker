@@ -4,24 +4,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import backend.academy.linktracker.scrapper.client.http.HttpResilienceExecutor;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.domain.UpdateEventType;
 import backend.academy.linktracker.scrapper.properties.GithubProperties;
+import backend.academy.linktracker.scrapper.properties.ResilienceProperties;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 class GithubExternalLinkClientTest {
 
     private HttpServer server;
     private GithubExternalLinkClient client;
+    private ResilienceProperties resilienceProperties;
 
     @BeforeEach
     void setup() throws IOException {
@@ -32,8 +38,13 @@ class GithubExternalLinkClientTest {
         properties.setBaseUrl("http://localhost:" + server.getAddress().getPort());
         properties.setToken("");
 
-        var restClient = RestClient.builder().baseUrl(properties.getBaseUrl()).build();
-        client = new GithubExternalLinkClient(restClient, properties);
+        var restClient = RestClient.builder()
+                .baseUrl(properties.getBaseUrl())
+                .requestFactory(requestFactory(properties))
+                .build();
+        resilienceProperties = new ResilienceProperties();
+        resilienceProperties.getRetry().setBackoff(Duration.ofMillis(10));
+        client = new GithubExternalLinkClient(restClient, properties, new HttpResilienceExecutor(resilienceProperties));
     }
 
     @AfterEach
@@ -91,6 +102,116 @@ class GithubExternalLinkClientTest {
         var result = client.fetchUpdates(trackedLink);
 
         assertTrue(result.failed());
+    }
+
+    @Test
+    void fetchUpdatesRetriesRetryableStatus() {
+        var calls = new AtomicInteger();
+        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
+            var call = calls.incrementAndGet();
+            if (call < 3) {
+                exchange.sendResponseHeaders(500, -1);
+                exchange.close();
+                return;
+            }
+
+            var payload = "[]";
+            var bytes = payload.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var responseBody = exchange.getResponseBody()) {
+                responseBody.write(bytes);
+            }
+        });
+
+        var trackedLink = TrackedLink.create(
+                1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
+        var result = client.fetchUpdates(trackedLink);
+
+        assertFalse(result.failed());
+        assertEquals(3, calls.get());
+    }
+
+    @Test
+    void fetchUpdatesDoesNotRetryNonRetryableStatus() {
+        var calls = new AtomicInteger();
+        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
+            calls.incrementAndGet();
+            exchange.sendResponseHeaders(400, -1);
+            exchange.close();
+        });
+
+        var trackedLink = TrackedLink.create(
+                1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
+        var result = client.fetchUpdates(trackedLink);
+
+        assertTrue(result.failed());
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void fetchUpdatesFailsByReadTimeoutBeforeProviderResponds() throws IOException {
+        tearDown();
+
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+
+        var properties = new GithubProperties();
+        properties.setBaseUrl("http://localhost:" + server.getAddress().getPort());
+        properties.setReadTimeout(Duration.ofMillis(100));
+
+        var restClient = RestClient.builder()
+                .baseUrl(properties.getBaseUrl())
+                .requestFactory(requestFactory(properties))
+                .build();
+        var timeoutClient =
+                new GithubExternalLinkClient(restClient, properties, new HttpResilienceExecutor(resilienceProperties));
+
+        var startedAt = System.nanoTime();
+        var result = timeoutClient.fetchUpdates(TrackedLink.create(
+                1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z")));
+        var elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
+
+        assertTrue(result.failed());
+        assertTrue(elapsed.compareTo(Duration.ofMillis(500)) < 0);
+    }
+
+    private SimpleClientHttpRequestFactory requestFactory(GithubProperties properties) {
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(properties.getConnectTimeout());
+        requestFactory.setReadTimeout(properties.getReadTimeout());
+        return requestFactory;
+    }
+
+    @Test
+    void fetchUpdatesDoesNotCallProviderWhenCircuitBreakerIsOpen() {
+        var calls = new AtomicInteger();
+        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
+            calls.incrementAndGet();
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
+        resilienceProperties.getRetry().setMaxAttempts(1);
+        resilienceProperties.getCircuitBreaker().setSlidingWindowSize(2);
+        resilienceProperties.getCircuitBreaker().setMinimumNumberOfCalls(2);
+        resilienceProperties.getCircuitBreaker().setFailureRateThreshold(50.0F);
+
+        var trackedLink = TrackedLink.create(
+                1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
+
+        assertTrue(client.fetchUpdates(trackedLink).failed());
+        assertTrue(client.fetchUpdates(trackedLink).failed());
+        assertTrue(client.fetchUpdates(trackedLink).failed());
+
+        assertEquals(2, calls.get());
     }
 
     @Test

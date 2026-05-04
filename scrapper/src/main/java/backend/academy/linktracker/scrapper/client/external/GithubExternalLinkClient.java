@@ -1,11 +1,13 @@
 package backend.academy.linktracker.scrapper.client.external;
 
+import backend.academy.linktracker.scrapper.client.http.HttpResilienceExecutor;
 import backend.academy.linktracker.scrapper.domain.DetectedUpdate;
 import backend.academy.linktracker.scrapper.domain.LinkCheckResult;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.domain.UpdateEventType;
 import backend.academy.linktracker.scrapper.domain.UpdateProvider;
 import backend.academy.linktracker.scrapper.properties.GithubProperties;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,14 +29,19 @@ import org.springframework.web.client.RestClientResponseException;
 public class GithubExternalLinkClient implements ExternalLinkClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GithubExternalLinkClient.class);
+    private static final String CLIENT_NAME = "github";
 
     private final RestClient restClient;
     private final GithubProperties githubProperties;
+    private final HttpResilienceExecutor resilienceExecutor;
 
     public GithubExternalLinkClient(
-            @Qualifier("githubRestClient") RestClient restClient, GithubProperties githubProperties) {
+            @Qualifier("githubRestClient") RestClient restClient,
+            GithubProperties githubProperties,
+            HttpResilienceExecutor resilienceExecutor) {
         this.restClient = restClient;
         this.githubProperties = githubProperties;
+        this.resilienceExecutor = resilienceExecutor;
     }
 
     @Override
@@ -55,21 +62,8 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
         }
 
         try {
-            var source = ownerRepo.orElseThrow();
-            var request = restClient
-                    .get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/repos/{owner}/{repo}/issues")
-                            .queryParam("state", "all")
-                            .queryParam("sort", "created")
-                            .queryParam("direction", "desc")
-                            .queryParam("per_page", 100)
-                            .build(source.owner(), source.repo()))
-                    .header("Accept", "application/vnd.github.text+json");
-            if (StringUtils.hasText(githubProperties.getToken())) {
-                request = request.header("Authorization", "Bearer " + githubProperties.getToken());
-            }
-            var responseBody = request.retrieve().body(String.class);
+            var responseBody =
+                    resilienceExecutor.execute(CLIENT_NAME, () -> fetchIssuePayload(ownerRepo.orElseThrow()));
             return parseUpdates(responseBody, trackedLink);
         } catch (RestClientResponseException exception) {
             LOGGER.atWarn()
@@ -77,6 +71,12 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
                     .addKeyValue("url", trackedLink.url())
                     .addKeyValue("status", exception.getStatusCode().value())
                     .log("GitHub request failed");
+            return LinkCheckResult.failure();
+        } catch (CallNotPermittedException exception) {
+            LOGGER.atWarn()
+                    .addKeyValue("provider", "github")
+                    .addKeyValue("url", trackedLink.url())
+                    .log("GitHub circuit breaker is open");
             return LinkCheckResult.failure();
         } catch (RestClientException | IllegalArgumentException exception) {
             LOGGER.atWarn()
@@ -86,6 +86,23 @@ public class GithubExternalLinkClient implements ExternalLinkClient {
                     .log("GitHub request failed with exception");
             return LinkCheckResult.failure();
         }
+    }
+
+    private String fetchIssuePayload(OwnerRepo source) {
+        var request = restClient
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/repos/{owner}/{repo}/issues")
+                        .queryParam("state", "all")
+                        .queryParam("sort", "created")
+                        .queryParam("direction", "desc")
+                        .queryParam("per_page", 100)
+                        .build(source.owner(), source.repo()))
+                .header("Accept", "application/vnd.github.text+json");
+        if (StringUtils.hasText(githubProperties.getToken())) {
+            request = request.header("Authorization", "Bearer " + githubProperties.getToken());
+        }
+        return request.retrieve().body(String.class);
     }
 
     private Optional<OwnerRepo> extractOwnerAndRepo(URI url) {

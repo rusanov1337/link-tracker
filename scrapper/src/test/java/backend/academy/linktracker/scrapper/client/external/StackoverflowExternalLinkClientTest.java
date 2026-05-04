@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import backend.academy.linktracker.scrapper.client.http.HttpResilienceExecutor;
 import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.domain.UpdateEventType;
+import backend.academy.linktracker.scrapper.properties.ResilienceProperties;
 import backend.academy.linktracker.scrapper.properties.StackoverflowProperties;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -16,6 +18,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 class StackoverflowExternalLinkClientTest {
@@ -34,8 +37,15 @@ class StackoverflowExternalLinkClientTest {
         properties.setKey("");
         properties.setAccessToken("");
 
-        var restClient = RestClient.builder().baseUrl(properties.getBaseUrl()).build();
-        client = new StackoverflowExternalLinkClient(restClient, properties);
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(properties.getConnectTimeout());
+        requestFactory.setReadTimeout(properties.getReadTimeout());
+        var restClient = RestClient.builder()
+                .baseUrl(properties.getBaseUrl())
+                .requestFactory(requestFactory)
+                .build();
+        client = new StackoverflowExternalLinkClient(
+                restClient, properties, new HttpResilienceExecutor(new ResilienceProperties()));
     }
 
     @AfterEach
