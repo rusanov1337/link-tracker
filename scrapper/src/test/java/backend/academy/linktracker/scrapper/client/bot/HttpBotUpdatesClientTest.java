@@ -6,11 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import backend.academy.linktracker.scrapper.client.http.HttpResilienceExecutor;
+import backend.academy.linktracker.scrapper.properties.ResilienceProperties;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.json.JacksonJsonParser;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 class HttpBotUpdatesClientTest {
@@ -30,10 +34,14 @@ class HttpBotUpdatesClientTest {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.start();
 
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(2));
+        requestFactory.setReadTimeout(Duration.ofSeconds(5));
         var restClient = RestClient.builder()
                 .baseUrl("http://localhost:" + server.getAddress().getPort())
+                .requestFactory(requestFactory)
                 .build();
-        client = new HttpBotUpdatesClient(restClient);
+        client = new HttpBotUpdatesClient(restClient, new HttpResilienceExecutor(new ResilienceProperties()));
     }
 
     @AfterEach
@@ -79,7 +87,8 @@ class HttpBotUpdatesClientTest {
     @Test
     void sendLinkUpdateThrowsWhenBotIsUnavailable() {
         var unavailableClient = new HttpBotUpdatesClient(
-                RestClient.builder().baseUrl("http://localhost:1").build());
+                RestClient.builder().baseUrl("http://localhost:1").build(),
+                new HttpResilienceExecutor(new ResilienceProperties()));
 
         var exception = assertThrows(
                 BotUpdatesClientException.class,

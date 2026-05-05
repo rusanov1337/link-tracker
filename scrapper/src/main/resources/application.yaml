@@ -85,6 +85,8 @@ app:
   bot:
     base-url: ${BOT_BASE_URL:http://localhost:8080}
     transport: ${BOT_TRANSPORT:kafka}
+    fallback:
+      kafka-enabled: ${BOT_FALLBACK_KAFKA_ENABLED:false}
     grpc:
       host: ${BOT_GRPC_HOST:localhost}
       port: ${BOT_GRPC_PORT:8090}

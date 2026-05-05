@@ -37,6 +37,9 @@ public class BotProperties {
     @Valid
     private Grpc grpc = new Grpc();
 
+    @Valid
+    private Fallback fallback = new Fallback();
+
     public enum Transport {
         HTTP,
         GRPC,
@@ -71,5 +74,14 @@ public class BotProperties {
 
         @DurationUnit(ChronoUnit.MILLIS)
         private Duration deadline = Duration.ofSeconds(3);
+    }
+
+    @Getter
+    @Setter
+    @EqualsAndHashCode
+    @NoArgsConstructor
+    public static class Fallback {
+
+        private boolean kafkaEnabled;
     }
 }

@@ -6,12 +6,13 @@ import backend.academy.linktracker.scrapper.properties.NotificationKafkaProperti
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(prefix = "app.bot", name = "transport", havingValue = "kafka", matchIfMissing = true)
+@ConditionalOnExpression(
+        "'${app.bot.transport:kafka}' == 'kafka' || '${app.bot.fallback.kafka-enabled:false}' == 'true'")
 public class KafkaBotUpdatesClient implements BotUpdatesClient {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
