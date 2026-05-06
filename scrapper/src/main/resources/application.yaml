@@ -63,6 +63,11 @@ app:
       failure-rate-threshold: ${HTTP_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD:50}
       permitted-calls-in-half-open-state: ${HTTP_CIRCUIT_BREAKER_HALF_OPEN_CALLS:5}
       wait-duration-in-open-state: ${HTTP_CIRCUIT_BREAKER_OPEN_WAIT:5s}
+  rate-limiting:
+    enabled: ${RATE_LIMITING_ENABLED:true}
+    limit-for-period: ${RATE_LIMITING_LIMIT_FOR_PERIOD:1000}
+    limit-refresh-period: ${RATE_LIMITING_LIMIT_REFRESH_PERIOD:1m}
+    timeout-duration: ${RATE_LIMITING_TIMEOUT_DURATION:0ms}
   kafka:
     topics:
       link-updates: ${KAFKA_LINK_UPDATES_TOPIC:link-updates}
