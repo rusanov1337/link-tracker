@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import backend.academy.linktracker.scrapper.DatabaseCleanupSupport;
 import backend.academy.linktracker.scrapper.api.dto.AddLinkRequest;
+import backend.academy.linktracker.scrapper.properties.ResilienceProperties;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -52,6 +53,9 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
 
     @Autowired
     private JdbcClient jdbcClient;
+
+    @Autowired
+    private ResilienceProperties resilienceProperties;
 
     @Test
     void checkUpdatesSendsNotificationToTrackedChats() {
@@ -201,7 +205,8 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
 
         linkUpdatePollingService.checkUpdates();
 
-        verify(1, postRequestedFor(urlEqualTo("/updates")));
+        var retryAttempts = resilienceProperties.getRetry().getMaxAttempts();
+        verify(retryAttempts, postRequestedFor(urlEqualTo("/updates")));
         verify(1, postRequestedFor(urlEqualTo("/reports")));
         assertOutboxState(2, 1);
 
@@ -209,7 +214,7 @@ class LinkUpdatePollingIntegrationTest extends DatabaseCleanupSupport {
 
         linkUpdatePollingService.checkUpdates();
 
-        verify(2, postRequestedFor(urlEqualTo("/updates")));
+        verify(retryAttempts + 1, postRequestedFor(urlEqualTo("/updates")));
         verify(1, postRequestedFor(urlEqualTo("/reports")));
         assertOutboxState(2, 2);
     }
