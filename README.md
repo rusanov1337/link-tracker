@@ -108,6 +108,18 @@ export TRACKED_LINKS_CACHE_KEY_PREFIX="tracked-links"
 export TRACKED_LINKS_CLIENT_SIDE_CACHE_ENABLED="false"
 export TRACKED_LINKS_CLIENT_SIDE_CACHE_MAX_SIZE="1024"
 export VALKEY_CLUSTER_MAX_REDIRECTS="3"
+export HTTP_RETRY_MAX_ATTEMPTS="3"
+export HTTP_RETRY_BACKOFF="500ms"
+export HTTP_RETRYABLE_STATUSES="500,502,503,504"
+export HTTP_CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE="10"
+export HTTP_CIRCUIT_BREAKER_MINIMUM_NUMBER_OF_CALLS="5"
+export HTTP_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD="50"
+export HTTP_CIRCUIT_BREAKER_HALF_OPEN_CALLS="5"
+export HTTP_CIRCUIT_BREAKER_OPEN_WAIT="5s"
+export RATE_LIMITING_ENABLED="true"
+export RATE_LIMITING_LIMIT_FOR_PERIOD="1000"
+export RATE_LIMITING_LIMIT_REFRESH_PERIOD="1m"
+export RATE_LIMITING_TIMEOUT_DURATION="0ms"
 ```
 
 ### Локальный запуск инфраструктуры
@@ -167,6 +179,37 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 - retry и DLQ на стороне `bot`
 - `Transactional Outbox` на стороне `scrapper`
 - 3-брокерный Kafka-кластер в `docker-compose`
+
+### Надежность HTTP-взаимодействий
+
+Для исходящих HTTP-запросов `bot` и `scrapper` используются timeout, retry и circuit breaker. Retry выполняется с constant backoff только для HTTP-статусов из `HTTP_RETRYABLE_STATUSES`.
+
+Настройки:
+
+- `HTTP_RETRY_MAX_ATTEMPTS`
+- `HTTP_RETRY_BACKOFF`
+- `HTTP_RETRYABLE_STATUSES`
+- `HTTP_CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE`
+- `HTTP_CIRCUIT_BREAKER_MINIMUM_NUMBER_OF_CALLS`
+- `HTTP_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD`
+- `HTTP_CIRCUIT_BREAKER_HALF_OPEN_CALLS`
+- `HTTP_CIRCUIT_BREAKER_OPEN_WAIT`
+
+Для отправки уведомлений можно включить fallback: если основной HTTP-транспорт `scrapper -> bot` недоступен, уведомление отправляется через Kafka.
+
+```bash
+export BOT_TRANSPORT="http"
+export BOT_FALLBACK_KAFKA_ENABLED="true"
+```
+
+Для входящих HTTP-запросов включен rate limiting по IP-адресу. При превышении лимита сервис возвращает `HTTP 429`.
+
+Настройки:
+
+- `RATE_LIMITING_ENABLED`
+- `RATE_LIMITING_LIMIT_FOR_PERIOD`
+- `RATE_LIMITING_LIMIT_REFRESH_PERIOD`
+- `RATE_LIMITING_TIMEOUT_DURATION`
 
 ### Кэширование списка ссылок
 
@@ -303,5 +346,17 @@ docker compose exec valkey-1 valkey-cli cluster info
 ```
 
 Тест поднимает Valkey через Testcontainers и проверяет запись JSON-ответа, cache hit, инвалидацию при добавлении/удалении ссылки, истечение TTL и invalidation-события для client-side cache.
+
+### Локальные тесты для проверки надежности
+
+```bash
+./mvnw -pl scrapper -am -Dtest=HttpResilienceExecutorTest,GithubExternalLinkClientTest,HttpBotUpdatesClientTest,FallbackBotUpdatesClientTest,RateLimitingIntegrationTest test
+```
+
+```bash
+./mvnw -pl bot -am -Dtest=HttpScrapperClientTest,RateLimitingIntegrationTest test
+```
+
+Эти тесты проверяют timeout, retry, retryable/non-retryable статусы, переходы circuit breaker, fallback HTTP -> Kafka и rate limiting.
 
 Полезную для разработки проекта информацию вы можете найти в файле [HELP.md](./HELP.md).
