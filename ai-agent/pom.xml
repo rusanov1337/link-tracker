@@ -9,15 +9,16 @@
     </parent>
 
     <artifactId>ai-agent</artifactId>
+    <packaging>jar</packaging>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webmvc</artifactId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aspectj</artifactId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -25,102 +26,8 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-restclient</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-cache</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-text</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>commons-codec</groupId>
-            <artifactId>commons-codec</artifactId>
-        </dependency>
-
-        <!-- Database: -->
-        <!-- <dependency> -->
-        <!--     <groupId>org.springframework.boot</groupId> -->
-        <!--     &lt;!&ndash; or: spring-boot-starter-data-jpa &ndash;&gt; -->
-        <!--     <artifactId>spring-boot-starter-data-jdbc</artifactId> -->
-        <!-- </dependency> -->
-        <!-- <dependency> -->
-        <!--     <groupId>org.springframework.boot</groupId> -->
-        <!--     &lt;!&ndash; or: spring-boot-starter-flyway &ndash;&gt; -->
-        <!--     <artifactId>spring-boot-starter-liquibase</artifactId> -->
-        <!-- </dependency> -->
-
-        <!-- gRPC: -->
-        <!-- <dependency>-->
-        <!--     <groupId>org.springframework.grpc</groupId> -->
-        <!--     <artifactId>spring-grpc-spring-boot-starter</artifactId> -->
-        <!-- </dependency> -->
-        <!-- <dependency> -->
-        <!--     <groupId>io.grpc</groupId> -->
-        <!--     <artifactId>grpc-services</artifactId> -->
-        <!-- </dependency> -->
-
-        <!-- GraphQL: -->
-        <!-- <dependency> -->
-        <!--     <groupId>org.springframework.boot</groupId> -->
-        <!--     <artifactId>spring-boot-starter-graphql</artifactId> -->
-        <!-- </dependency> -->
-
-        <!-- Redis: -->
-        <!-- <dependency> -->
-        <!--     <groupId>org.springframework.boot</groupId> -->
-        <!--     <artifactId>spring-boot-starter-data-redis</artifactId> -->
-        <!-- </dependency> -->
-
-        <!-- Kafka: -->
-        <!-- <dependency>-->
-        <!--     <groupId>org.springframework.boot</groupId> -->
-        <!--     <artifactId>spring-boot-starter-kafka</artifactId> -->
-        <!-- </dependency> -->
-
-        <!-- Opentelemetry support: -->
-        <!-- <dependency> -->
-        <!--     <groupId>org.springframework.boot</groupId> -->
-        <!--     <artifactId>spring-boot-starter-opentelemetry</artifactId> -->
-        <!-- </dependency> -->
-        <!-- <dependency> -->
-        <!--     <groupId>io.opentelemetry.instrumentation</groupId> -->
-        <!--     <artifactId>opentelemetry-logback-appender-1.0</artifactId> -->
-        <!-- </dependency> -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -139,13 +46,13 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-postgresql</artifactId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -153,63 +60,14 @@
             <artifactId>testcontainers-kafka</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.redis</groupId>
-            <artifactId>testcontainers-redis</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.wiremock.integrations</groupId>
-            <artifactId>wiremock-spring-boot-standalone</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.wiremock</groupId>
-            <artifactId>wiremock-grpc-extension</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.datafaker</groupId>
-            <artifactId>datafaker</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.instancio</groupId>
-            <artifactId>instancio-junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.instancio</groupId>
-            <artifactId>instancio-guava</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.awaitility</groupId>
-            <artifactId>awaitility</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- .proto gRPC compilation: -->
-            <!-- <plugin> -->
-            <!--     <groupId>io.github.ascopes</groupId> -->
-            <!--     <artifactId>protobuf-maven-plugin</artifactId> -->
-            <!--     <executions> -->
-            <!--         <execution> -->
-            <!--             <goals> -->
-            <!--                 <goal>generate</goal> -->
-            <!--             </goals> -->
-            <!--         </execution> -->
-            <!--     </executions> -->
-            <!-- </plugin> -->
-            <!-- To build OCI image: https://docs.spring.io/spring-boot/maven-plugin/build-image.html -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
-
 </project>

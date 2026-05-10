@@ -25,6 +25,7 @@
     </developers>
 
     <modules>
+        <module>ai-agent</module>
         <module>bot</module>
         <module>scrapper</module>
     </modules>
@@ -447,12 +448,6 @@
     </build>
 
     <profiles>
-        <profile>
-            <id>with-ai-agent</id>
-            <modules>
-                <module>ai-agent</module>
-            </modules>
-        </profile>
         <profile>
             <id>with-e2e</id>
             <modules>
