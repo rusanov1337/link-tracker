@@ -4,8 +4,28 @@ server:
 spring:
   application:
     name: ai-agent
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${AI_AGENT_KAFKA_CONSUMER_GROUP_ID:link-tracker-ai-agent}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.value.default.type: backend.academy.linktracker.ai.dto.RawLinkUpdateEvent
+        spring.json.trusted.packages: backend.academy.linktracker.ai.dto
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
 
 ai-agent:
+  kafka:
+    topics:
+      raw-updates: ${AI_AGENT_RAW_UPDATES_TOPIC:link.raw-updates}
+      processed-updates: ${AI_AGENT_PROCESSED_UPDATES_TOPIC:link.processed-updates}
   filtering:
     stop-words: ${AI_AGENT_STOP_WORDS:spam,ads,promo}
     excluded-authors: ${AI_AGENT_EXCLUDED_AUTHORS:bot-user}
