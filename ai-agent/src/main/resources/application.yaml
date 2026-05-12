@@ -4,3 +4,11 @@ server:
 spring:
   application:
     name: ai-agent
+
+ai-agent:
+  filtering:
+    stop-words: ${AI_AGENT_STOP_WORDS:spam,ads,promo}
+    excluded-authors: ${AI_AGENT_EXCLUDED_AUTHORS:bot-user}
+    min-length: ${AI_AGENT_FILTERING_MIN_LENGTH:20}
+  summarization:
+    threshold: ${AI_AGENT_SUMMARIZATION_THRESHOLD:500}
