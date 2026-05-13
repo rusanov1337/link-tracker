@@ -55,6 +55,7 @@ class AiAgentKafkaIntegrationTest {
         var processed = awaitProcessedUpdate("12345");
 
         assertThat(processed.id()).isEqualTo(12345L);
+        assertThat(processed.url()).isEqualTo("https://github.com/octocat/hello-world");
         assertThat(processed.description()).isEqualTo("Regular update text with enough length");
         assertThat(processed.tgChatIds()).containsExactly(111L, 222L);
         assertThat(processed.priority().name()).isEqualTo("HIGH");
@@ -71,7 +72,12 @@ class AiAgentKafkaIntegrationTest {
     }
 
     private RawLinkUpdateEvent validUpdate() {
-        return new RawLinkUpdateEvent(12345L, "Regular update text with enough length", "alice", List.of(111L, 222L));
+        return new RawLinkUpdateEvent(
+                12345L,
+                "https://github.com/octocat/hello-world",
+                "Regular update text with enough length",
+                "alice",
+                List.of(111L, 222L));
     }
 
     private ProcessedLinkUpdateEvent awaitProcessedUpdate(String key) {

@@ -30,6 +30,9 @@ public class NotificationKafkaProperties {
     @Valid
     private Avro avro = new Avro();
 
+    @Valid
+    private AiAgent aiAgent = new AiAgent();
+
     @Getter
     @Setter
     @EqualsAndHashCode
@@ -47,6 +50,9 @@ public class NotificationKafkaProperties {
 
         @NotBlank
         private String processingFailureReportsDlq = "processing-failure-reports-dlq";
+
+        @NotBlank
+        private String processedUpdates = "link.processed-updates";
     }
 
     @Getter
@@ -76,5 +82,14 @@ public class NotificationKafkaProperties {
         private boolean autoRegisterSchemas = true;
 
         private boolean specificReader = true;
+    }
+
+    @Getter
+    @Setter
+    @EqualsAndHashCode
+    @NoArgsConstructor
+    public static class AiAgent {
+
+        private boolean enabled;
     }
 }

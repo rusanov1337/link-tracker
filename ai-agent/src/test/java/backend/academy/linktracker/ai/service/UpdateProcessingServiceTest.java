@@ -74,6 +74,7 @@ class UpdateProcessingServiceTest {
     }
 
     private RawLinkUpdateEvent update(String description, String author) {
-        return new RawLinkUpdateEvent(12345L, description, author, List.of(111L, 222L));
+        return new RawLinkUpdateEvent(
+                12345L, "https://github.com/octocat/hello-world", description, author, List.of(111L, 222L));
     }
 }

@@ -48,6 +48,7 @@ app:
     topics:
       link-updates: ${KAFKA_LINK_UPDATES_TOPIC:link-updates}
       link-updates-dlq: ${KAFKA_LINK_UPDATES_DLQ_TOPIC:link-updates-dlq}
+      processed-updates: ${AI_AGENT_PROCESSED_UPDATES_TOPIC:link.processed-updates}
       processing-failure-reports: ${KAFKA_PROCESSING_FAILURE_REPORTS_TOPIC:processing-failure-reports}
       processing-failure-reports-dlq: ${KAFKA_PROCESSING_FAILURE_REPORTS_DLQ_TOPIC:processing-failure-reports-dlq}
     consumer:
@@ -58,6 +59,8 @@ app:
       schema-registry-url: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8085}
       auto-register-schemas: ${KAFKA_AUTO_REGISTER_SCHEMAS:true}
       specific-reader: ${KAFKA_SPECIFIC_AVRO_READER:true}
+    ai-agent:
+      enabled: ${AI_AGENT_ENABLED:false}
   grpc:
     server:
       enabled: ${BOT_GRPC_SERVER_ENABLED:false}

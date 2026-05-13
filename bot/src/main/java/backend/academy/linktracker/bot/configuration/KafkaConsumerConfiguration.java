@@ -1,10 +1,12 @@
 package backend.academy.linktracker.bot.configuration;
 
+import backend.academy.linktracker.bot.kafka.ProcessedLinkUpdateEvent;
 import backend.academy.linktracker.bot.properties.NotificationKafkaProperties;
 import io.apicurio.registry.serde.avro.AvroKafkaSerializer;
 import jakarta.validation.ConstraintViolationException;
 import java.util.LinkedHashMap;
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -14,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -22,11 +25,15 @@ import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DeserializationException;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
 @RequiredArgsConstructor
 public class KafkaConsumerConfiguration {
+
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(KafkaConsumerConfiguration.class);
 
     private final NotificationKafkaProperties kafkaProperties;
 
@@ -89,6 +96,32 @@ public class KafkaConsumerConfiguration {
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(kafkaErrorHandler);
         return factory;
+    }
+
+    @Bean
+    ConcurrentKafkaListenerContainerFactory<String, ProcessedLinkUpdateEvent>
+            processedUpdateKafkaListenerContainerFactory(KafkaProperties kafkaConfigurationProperties) {
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, ProcessedLinkUpdateEvent>();
+        factory.setConsumerFactory(processedUpdateConsumerFactory(kafkaConfigurationProperties));
+        factory.setCommonErrorHandler(new DefaultErrorHandler(
+                (record, exception) -> LOGGER.warn(
+                        "Skipping processed update Kafka record topic={} partition={} offset={}",
+                        record.topic(),
+                        record.partition(),
+                        record.offset(),
+                        exception),
+                new FixedBackOff(0L, 0L)));
+        return factory;
+    }
+
+    private ConsumerFactory<String, ProcessedLinkUpdateEvent> processedUpdateConsumerFactory(
+            KafkaProperties kafkaConfigurationProperties) {
+        var consumerProperties = new LinkedHashMap<>(kafkaConfigurationProperties.buildConsumerProperties());
+        consumerProperties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+        consumerProperties.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class.getName());
+        consumerProperties.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ProcessedLinkUpdateEvent.class.getName());
+        consumerProperties.put(JsonDeserializer.TRUSTED_PACKAGES, ProcessedLinkUpdateEvent.class.getPackageName());
+        return new DefaultKafkaConsumerFactory<>(consumerProperties);
     }
 
     private String resolveDlqTopic(String topic) {

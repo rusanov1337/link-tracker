@@ -85,6 +85,9 @@ export BOT_BASE_URL="http://localhost:8080"
 export BOT_TRANSPORT="kafka"
 export KAFKA_BOOTSTRAP_SERVERS="localhost:19092"
 export KAFKA_SCHEMA_REGISTRY_URL="http://localhost:8085"
+export AI_AGENT_ENABLED="true"
+export AI_AGENT_RAW_UPDATES_TOPIC="link.raw-updates"
+export AI_AGENT_PROCESSED_UPDATES_TOPIC="link.processed-updates"
 export VALKEY_HOST="localhost"
 export VALKEY_PORT="6379"
 export VALKEY_CLUSTER_ENABLED="true"
@@ -120,6 +123,10 @@ export RATE_LIMITING_ENABLED="true"
 export RATE_LIMITING_LIMIT_FOR_PERIOD="1000"
 export RATE_LIMITING_LIMIT_REFRESH_PERIOD="1m"
 export RATE_LIMITING_TIMEOUT_DURATION="0ms"
+export AI_AGENT_STOP_WORDS="spam,ads,promo"
+export AI_AGENT_EXCLUDED_AUTHORS="bot-user"
+export AI_AGENT_MIN_LENGTH="20"
+export AI_AGENT_SUMMARIZATION_THRESHOLD="500"
 ```
 
 ### Локальный запуск инфраструктуры
@@ -146,11 +153,18 @@ java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
 java -jar ./scrapper/target/scrapper-0.0.1.jar
 ```
 
+AI Agent запускается отдельным сервисом:
+
+```bash
+java -jar ./ai-agent/target/ai-agent-0.0.1.jar
+```
+
 Если запускаете из IDE:
 
 - сначала поднимите `postgres`, `kafka-*`, `kafka-init`, `schema-registry`, `valkey-*` и `valkey-init` через `docker compose`
 - затем запустите `bot`
 - затем запустите `scrapper`
+- затем запустите `ai-agent`
 
 По умолчанию `scrapper` отправляет уведомления в `bot` через Kafka. Для возврата к синхронному режиму можно явно задать:
 
@@ -179,6 +193,26 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 - retry и DLQ на стороне `bot`
 - `Transactional Outbox` на стороне `scrapper`
 - 3-брокерный Kafka-кластер в `docker-compose`
+
+### AI Agent
+
+`ai-agent` читает обновления из Kafka topic `link.raw-updates`, фильтрует их по стоп-словам, исключенным авторам и минимальной длине текста, затем при необходимости сокращает длинное описание и публикует результат в `link.processed-updates`.
+
+Настройки:
+
+- `AI_AGENT_RAW_UPDATES_TOPIC`
+- `AI_AGENT_PROCESSED_UPDATES_TOPIC`
+- `AI_AGENT_ENABLED`
+- `AI_AGENT_STOP_WORDS`
+- `AI_AGENT_EXCLUDED_AUTHORS`
+- `AI_AGENT_MIN_LENGTH`
+- `AI_AGENT_SUMMARIZATION_THRESHOLD`
+
+Локальная проверка Kafka-интеграции:
+
+```bash
+./mvnw -pl ai-agent -am test
+```
 
 ### Надежность HTTP-взаимодействий
 
@@ -302,6 +336,8 @@ docker compose ps
 
 - `link-updates`
 - `link-updates-dlq`
+- `link.raw-updates`
+- `link.processed-updates`
 - `processing-failure-reports`
 - `processing-failure-reports-dlq`
 

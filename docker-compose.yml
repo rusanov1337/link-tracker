@@ -139,6 +139,8 @@ services:
         done
         kafka-topics --bootstrap-server kafka-1:9092 --create --if-not-exists --topic link-updates --partitions 3 --replication-factor 3 --config min.insync.replicas=2
         kafka-topics --bootstrap-server kafka-1:9092 --create --if-not-exists --topic link-updates-dlq --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+        kafka-topics --bootstrap-server kafka-1:9092 --create --if-not-exists --topic link.raw-updates --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+        kafka-topics --bootstrap-server kafka-1:9092 --create --if-not-exists --topic link.processed-updates --partitions 3 --replication-factor 3 --config min.insync.replicas=2
         kafka-topics --bootstrap-server kafka-1:9092 --create --if-not-exists --topic processing-failure-reports --partitions 3 --replication-factor 3 --config min.insync.replicas=2
         kafka-topics --bootstrap-server kafka-1:9092 --create --if-not-exists --topic processing-failure-reports-dlq --partitions 3 --replication-factor 3 --config min.insync.replicas=2
         kafka-topics --bootstrap-server kafka-1:9092 --list

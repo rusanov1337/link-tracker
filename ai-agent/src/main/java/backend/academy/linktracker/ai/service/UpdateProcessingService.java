@@ -22,6 +22,10 @@ public class UpdateProcessingService {
             return Optional.empty();
         }
         return Optional.of(new ProcessedLinkUpdateEvent(
-                update.id(), summarizer.summarize(update.description()), update.tgChatIds(), UpdatePriority.HIGH));
+                update.id(),
+                update.url(),
+                summarizer.summarize(update.description()),
+                update.tgChatIds(),
+                UpdatePriority.HIGH));
     }
 }

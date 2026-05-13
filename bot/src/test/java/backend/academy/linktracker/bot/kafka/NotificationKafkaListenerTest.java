@@ -29,11 +29,14 @@ class NotificationKafkaListenerTest {
 
     private ValidatorFactory validatorFactory;
     private NotificationKafkaListener listener;
+    private ProcessedUpdateKafkaListener processedUpdateListener;
 
     @BeforeEach
     void setUp() {
         validatorFactory = Validation.buildDefaultValidatorFactory();
         listener = new NotificationKafkaListener(linkUpdateNotificationService, validatorFactory.getValidator());
+        processedUpdateListener =
+                new ProcessedUpdateKafkaListener(linkUpdateNotificationService, validatorFactory.getValidator());
     }
 
     @AfterEach
@@ -79,5 +82,17 @@ class NotificationKafkaListenerTest {
                         .setDescription("")
                         .setTgChatIds(List.of())
                         .build()));
+    }
+
+    @Test
+    void processProcessedUpdatePassesValidPayloadToNotificationService() {
+        processedUpdateListener.processProcessedUpdate(new ProcessedLinkUpdateEvent(
+                42L, "https://github.com/octocat/hello-world", "Updated", List.of(1L, 2L), "HIGH"));
+
+        var captor = ArgumentCaptor.forClass(LinkUpdate.class);
+        verify(linkUpdateNotificationService).processStrict(captor.capture());
+        assertEquals(
+                new LinkUpdate(42L, "https://github.com/octocat/hello-world", "Updated", List.of(1L, 2L)),
+                captor.getValue());
     }
 }

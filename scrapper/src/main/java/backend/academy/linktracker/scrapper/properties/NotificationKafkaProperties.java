@@ -30,6 +30,9 @@ public class NotificationKafkaProperties {
     @Valid
     private Avro avro = new Avro();
 
+    @Valid
+    private AiAgent aiAgent = new AiAgent();
+
     @Getter
     @Setter
     @EqualsAndHashCode
@@ -47,6 +50,9 @@ public class NotificationKafkaProperties {
 
         @NotBlank
         private String processingFailureReportsDlq = "processing-failure-reports-dlq";
+
+        @NotBlank
+        private String rawUpdates = "link.raw-updates";
     }
 
     @Getter
@@ -72,5 +78,14 @@ public class NotificationKafkaProperties {
         private String schemaRegistryUrl = "http://localhost:8085";
 
         private boolean autoRegisterSchemas = true;
+    }
+
+    @Getter
+    @Setter
+    @EqualsAndHashCode
+    @NoArgsConstructor
+    public static class AiAgent {
+
+        private boolean enabled;
     }
 }

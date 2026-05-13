@@ -5,9 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import backend.academy.linktracker.kafka.avro.LinkUpdateEvent;
 import backend.academy.linktracker.kafka.avro.ProcessingFailureReportEvent;
+import backend.academy.linktracker.scrapper.client.bot.dto.RawLinkUpdateEvent;
 import backend.academy.linktracker.scrapper.properties.NotificationKafkaProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.apicurio.registry.serde.avro.AvroKafkaDeserializer;
 import io.apicurio.registry.serde.avro.AvroKafkaSerializer;
+import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
@@ -22,6 +25,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
@@ -42,10 +46,12 @@ class KafkaBotUpdatesClientIntegrationTest {
             .withExposedPorts(8080)
             .waitingFor(Wait.forHttp("/apis").forPort(8080).forStatusCode(200));
 
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
     @Test
     void sendLinkUpdatePublishesJsonMessageToLinkUpdatesTopic() {
         var kafkaProperties = new NotificationKafkaProperties();
-        var client = new KafkaBotUpdatesClient(createKafkaTemplate(), kafkaProperties);
+        var client = new KafkaBotUpdatesClient(createKafkaTemplate(), createKafkaTemplate(), kafkaProperties);
 
         try (var consumer = createConsumer()) {
             consumer.subscribe(List.of(kafkaProperties.getTopics().getLinkUpdates()));
@@ -68,7 +74,7 @@ class KafkaBotUpdatesClientIntegrationTest {
     @Test
     void sendProcessingFailureReportPublishesJsonMessageToReportsTopic() {
         var kafkaProperties = new NotificationKafkaProperties();
-        var client = new KafkaBotUpdatesClient(createKafkaTemplate(), kafkaProperties);
+        var client = new KafkaBotUpdatesClient(createKafkaTemplate(), createKafkaTemplate(), kafkaProperties);
 
         try (var consumer = createConsumer()) {
             consumer.subscribe(List.of(kafkaProperties.getTopics().getProcessingFailureReports()));
@@ -85,6 +91,33 @@ class KafkaBotUpdatesClientIntegrationTest {
         }
     }
 
+    @Test
+    void sendLinkUpdatePublishesRawJsonMessageToAiAgentTopicWhenEnabled() throws Exception {
+        var kafkaProperties = new NotificationKafkaProperties();
+        kafkaProperties.getAiAgent().setEnabled(true);
+        var client = new KafkaBotUpdatesClient(createKafkaTemplate(), createJsonKafkaTemplate(), kafkaProperties);
+
+        try (var consumer = createConsumer()) {
+            consumer.subscribe(List.of(kafkaProperties.getTopics().getRawUpdates()));
+
+            client.sendLinkUpdate(
+                    42L,
+                    URI.create("https://github.com/octocat/hello-world"),
+                    "Новый issue\nНазвание: New issue\nПользователь: octocat\nСоздано: 2099-01-01T00:00:00Z\nОписание: Updated",
+                    List.of(1L, 2L));
+
+            var record = pollSingleRecord(consumer);
+            assertEquals(kafkaProperties.getTopics().getRawUpdates(), record.topic());
+            assertEquals("42", record.key());
+
+            var payload = readJson(record, RawLinkUpdateEvent.class);
+            assertEquals(42L, payload.id());
+            assertEquals("https://github.com/octocat/hello-world", payload.url());
+            assertEquals("octocat", payload.author());
+            assertEquals(List.of(1L, 2L), payload.tgChatIds());
+        }
+    }
+
     private KafkaTemplate<String, Object> createKafkaTemplate() {
         var producerFactory = new DefaultKafkaProducerFactory<String, Object>(Map.of(
                 org.apache.kafka.clients.producer.ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
@@ -97,6 +130,19 @@ class KafkaBotUpdatesClientIntegrationTest {
                 getRegistryApiUrl(),
                 "apicurio.registry.auto-register",
                 true));
+        return new KafkaTemplate<>(producerFactory);
+    }
+
+    private KafkaTemplate<String, Object> createJsonKafkaTemplate() {
+        var producerFactory = new DefaultKafkaProducerFactory<String, Object>(Map.of(
+                org.apache.kafka.clients.producer.ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                KAFKA_CONTAINER.getBootstrapServers(),
+                org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+                org.apache.kafka.common.serialization.StringSerializer.class,
+                org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                JsonSerializer.class,
+                JsonSerializer.ADD_TYPE_INFO_HEADERS,
+                false));
         return new KafkaTemplate<>(producerFactory);
     }
 
@@ -134,6 +180,14 @@ class KafkaBotUpdatesClientIntegrationTest {
                             true),
                     false);
             return deserializer.deserialize(record.topic(), record.headers(), record.value());
+        }
+    }
+
+    private <T> T readJson(ConsumerRecord<String, byte[]> record, Class<T> type) {
+        try {
+            return objectMapper.readValue(record.value(), type);
+        } catch (IOException exception) {
+            throw new AssertionError("Unable to parse Kafka JSON message", exception);
         }
     }
 
