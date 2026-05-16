@@ -26,7 +26,7 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
@@ -118,9 +118,11 @@ public class KafkaConsumerConfiguration {
             KafkaProperties kafkaConfigurationProperties) {
         var consumerProperties = new LinkedHashMap<>(kafkaConfigurationProperties.buildConsumerProperties());
         consumerProperties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
-        consumerProperties.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class.getName());
-        consumerProperties.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ProcessedLinkUpdateEvent.class.getName());
-        consumerProperties.put(JsonDeserializer.TRUSTED_PACKAGES, ProcessedLinkUpdateEvent.class.getPackageName());
+        consumerProperties.put(
+                ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JacksonJsonDeserializer.class.getName());
+        consumerProperties.put(JacksonJsonDeserializer.VALUE_DEFAULT_TYPE, ProcessedLinkUpdateEvent.class.getName());
+        consumerProperties.put(
+                JacksonJsonDeserializer.TRUSTED_PACKAGES, ProcessedLinkUpdateEvent.class.getPackageName());
         return new DefaultKafkaConsumerFactory<>(consumerProperties);
     }
 

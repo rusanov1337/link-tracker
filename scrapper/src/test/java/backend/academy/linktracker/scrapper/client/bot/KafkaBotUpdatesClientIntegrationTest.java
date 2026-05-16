@@ -25,7 +25,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
@@ -92,7 +92,7 @@ class KafkaBotUpdatesClientIntegrationTest {
     }
 
     @Test
-    void sendLinkUpdatePublishesRawJsonMessageToAiAgentTopicWhenEnabled() throws Exception {
+    void sendLinkUpdatePublishesRawJsonMessageToAiAgentTopicWhenEnabled() {
         var kafkaProperties = new NotificationKafkaProperties();
         kafkaProperties.getAiAgent().setEnabled(true);
         var client = new KafkaBotUpdatesClient(createKafkaTemplate(), createJsonKafkaTemplate(), kafkaProperties);
@@ -140,8 +140,8 @@ class KafkaBotUpdatesClientIntegrationTest {
                 org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
                 org.apache.kafka.common.serialization.StringSerializer.class,
                 org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-                JsonSerializer.class,
-                JsonSerializer.ADD_TYPE_INFO_HEADERS,
+                JacksonJsonSerializer.class,
+                JacksonJsonSerializer.ADD_TYPE_INFO_HEADERS,
                 false));
         return new KafkaTemplate<>(producerFactory);
     }
