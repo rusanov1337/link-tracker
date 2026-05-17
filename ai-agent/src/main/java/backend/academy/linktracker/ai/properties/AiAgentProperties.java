@@ -23,6 +23,9 @@ public class AiAgentProperties {
     @Valid
     private Summarization summarization = new Summarization();
 
+    @Valid
+    private Prioritization prioritization = new Prioritization();
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -43,5 +46,15 @@ public class AiAgentProperties {
 
         @Min(0)
         private int threshold = 500;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class Prioritization {
+
+        private List<String> highKeywords = new ArrayList<>(List.of("critical", "urgent", "breaking", "security"));
+
+        private List<String> lowKeywords = new ArrayList<>(List.of("minor", "typo", "chore", "docs"));
     }
 }

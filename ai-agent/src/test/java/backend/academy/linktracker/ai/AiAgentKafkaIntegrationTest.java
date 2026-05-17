@@ -58,6 +58,25 @@ class AiAgentKafkaIntegrationTest {
         assertThat(processed.url()).isEqualTo("https://github.com/octocat/hello-world");
         assertThat(processed.description()).isEqualTo("Regular update text with enough length");
         assertThat(processed.tgChatIds()).containsExactly(111L, 222L);
+        assertThat(processed.priority().name()).isEqualTo("MEDIUM");
+    }
+
+    @Test
+    void prioritizesRawUpdateBeforePublishing() throws Exception {
+        kafkaTemplate
+                .send(
+                        RAW_TOPIC,
+                        "12346",
+                        new RawLinkUpdateEvent(
+                                12346L,
+                                "https://github.com/octocat/hello-world",
+                                "Critical security update with enough length",
+                                "alice",
+                                List.of(111L)))
+                .get();
+
+        var processed = awaitProcessedUpdate("12346");
+
         assertThat(processed.priority().name()).isEqualTo("HIGH");
     }
 

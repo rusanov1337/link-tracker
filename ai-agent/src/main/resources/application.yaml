@@ -32,3 +32,6 @@ ai-agent:
     min-length: ${AI_AGENT_FILTERING_MIN_LENGTH:20}
   summarization:
     threshold: ${AI_AGENT_SUMMARIZATION_THRESHOLD:500}
+  prioritization:
+    high-keywords: ${AI_AGENT_HIGH_KEYWORDS:critical,urgent,breaking,security}
+    low-keywords: ${AI_AGENT_LOW_KEYWORDS:minor,typo,chore,docs}

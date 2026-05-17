@@ -20,8 +20,10 @@ class UpdateProcessingServiceTest {
         properties.getFiltering().setExcludedAuthors(List.of("bot-user"));
         properties.getFiltering().setMinLength(20);
         properties.getSummarization().setThreshold(30);
-        processingService =
-                new UpdateProcessingService(new UpdateFilterService(properties), new UpdateSummarizer(properties));
+        processingService = new UpdateProcessingService(
+                new UpdateFilterService(properties),
+                new UpdateSummarizer(properties),
+                new UpdatePrioritizationService(properties));
     }
 
     @Test
@@ -53,8 +55,24 @@ class UpdateProcessingServiceTest {
             assertThat(update.id()).isEqualTo(12345L);
             assertThat(update.description()).isEqualTo("Long enough valid text");
             assertThat(update.tgChatIds()).containsExactly(111L, 222L);
-            assertThat(update.priority()).isEqualTo(UpdatePriority.HIGH);
+            assertThat(update.priority()).isEqualTo(UpdatePriority.MEDIUM);
         });
+    }
+
+    @Test
+    void prioritizesHighKeywordUpdate() {
+        var result = processingService.process(update("Critical bug fix is ready", "alice"));
+
+        assertThat(result)
+                .hasValueSatisfying(update -> assertThat(update.priority()).isEqualTo(UpdatePriority.HIGH));
+    }
+
+    @Test
+    void prioritizesLowKeywordUpdate() {
+        var result = processingService.process(update("Fix typo in documentation", "alice"));
+
+        assertThat(result)
+                .hasValueSatisfying(update -> assertThat(update.priority()).isEqualTo(UpdatePriority.LOW));
     }
 
     @Test

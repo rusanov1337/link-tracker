@@ -2,7 +2,6 @@ package backend.academy.linktracker.ai.service;
 
 import backend.academy.linktracker.ai.dto.ProcessedLinkUpdateEvent;
 import backend.academy.linktracker.ai.dto.RawLinkUpdateEvent;
-import backend.academy.linktracker.ai.dto.UpdatePriority;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
@@ -11,10 +10,15 @@ public class UpdateProcessingService {
 
     private final UpdateFilterService filterService;
     private final UpdateSummarizer summarizer;
+    private final UpdatePrioritizationService prioritizationService;
 
-    public UpdateProcessingService(UpdateFilterService filterService, UpdateSummarizer summarizer) {
+    public UpdateProcessingService(
+            UpdateFilterService filterService,
+            UpdateSummarizer summarizer,
+            UpdatePrioritizationService prioritizationService) {
         this.filterService = filterService;
         this.summarizer = summarizer;
+        this.prioritizationService = prioritizationService;
     }
 
     public Optional<ProcessedLinkUpdateEvent> process(RawLinkUpdateEvent update) {
@@ -26,6 +30,6 @@ public class UpdateProcessingService {
                 update.url(),
                 summarizer.summarize(update.description()),
                 update.tgChatIds(),
-                UpdatePriority.HIGH));
+                prioritizationService.prioritize(update.description())));
     }
 }
