@@ -1,6 +1,7 @@
 package backend.academy.linktracker.ai.kafka;
 
 import backend.academy.linktracker.ai.dto.RawLinkUpdateEvent;
+import backend.academy.linktracker.ai.service.UpdateGroupingService;
 import backend.academy.linktracker.ai.service.UpdateProcessingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,11 +14,11 @@ public class RawUpdateListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(RawUpdateListener.class);
 
     private final UpdateProcessingService processingService;
-    private final ProcessedUpdateProducer producer;
+    private final UpdateGroupingService groupingService;
 
-    public RawUpdateListener(UpdateProcessingService processingService, ProcessedUpdateProducer producer) {
+    public RawUpdateListener(UpdateProcessingService processingService, UpdateGroupingService groupingService) {
         this.processingService = processingService;
-        this.producer = producer;
+        this.groupingService = groupingService;
     }
 
     @KafkaListener(topics = "${ai-agent.kafka.topics.raw-updates}")
@@ -25,6 +26,6 @@ public class RawUpdateListener {
         LOGGER.info("Raw update received id={}", update.id());
         processingService
                 .process(update)
-                .ifPresentOrElse(producer::send, () -> LOGGER.info("Raw update filtered id={}", update.id()));
+                .ifPresentOrElse(groupingService::submit, () -> LOGGER.info("Raw update filtered id={}", update.id()));
     }
 }

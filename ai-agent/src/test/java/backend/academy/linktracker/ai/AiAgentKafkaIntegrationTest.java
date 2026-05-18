@@ -41,6 +41,7 @@ class AiAgentKafkaIntegrationTest {
         registry.add("spring.kafka.bootstrap-servers", KAFKA_CONTAINER::getBootstrapServers);
         registry.add("ai-agent.kafka.topics.raw-updates", () -> RAW_TOPIC);
         registry.add("ai-agent.kafka.topics.processed-updates", () -> PROCESSED_TOPIC);
+        registry.add("ai-agent.grouping.window-ms", () -> 100);
     }
 
     @Autowired
@@ -57,7 +58,7 @@ class AiAgentKafkaIntegrationTest {
         assertThat(processed.id()).isEqualTo(12345L);
         assertThat(processed.url()).isEqualTo("https://github.com/octocat/hello-world");
         assertThat(processed.description()).isEqualTo("Regular update text with enough length");
-        assertThat(processed.tgChatIds()).containsExactly(111L, 222L);
+        assertThat(processed.tgChatIds()).containsExactly(111L);
         assertThat(processed.priority().name()).isEqualTo("MEDIUM");
     }
 
@@ -81,6 +82,40 @@ class AiAgentKafkaIntegrationTest {
     }
 
     @Test
+    void groupsRawUpdatesForSameChatBeforePublishing() throws Exception {
+        kafkaTemplate
+                .send(
+                        RAW_TOPIC,
+                        "20001",
+                        new RawLinkUpdateEvent(
+                                20001L,
+                                "https://github.com/octocat/hello-world",
+                                "Critical production incident update",
+                                "alice",
+                                List.of(333L)))
+                .get();
+        kafkaTemplate
+                .send(
+                        RAW_TOPIC,
+                        "20002",
+                        new RawLinkUpdateEvent(
+                                20002L,
+                                "https://github.com/octocat/hello-world",
+                                "Fix typo in documentation update",
+                                "bob",
+                                List.of(333L)))
+                .get();
+
+        var processed = awaitProcessedUpdate("20001");
+
+        assertThat(processed.tgChatIds()).containsExactly(333L);
+        assertThat(processed.description())
+                .isEqualTo("1. Critical production incident update" + System.lineSeparator()
+                        + "2. Fix typo in documentation update");
+        assertThat(processed.priority().name()).isEqualTo("HIGH");
+    }
+
+    @Test
     void malformedMessageIsSkippedWithoutStoppingConsumer() throws Exception {
         kafkaTemplate.send(RAW_TOPIC, "bad", "not-json").get();
         kafkaTemplate.send(RAW_TOPIC, "12345", validUpdate()).get();
@@ -96,7 +131,7 @@ class AiAgentKafkaIntegrationTest {
                 "https://github.com/octocat/hello-world",
                 "Regular update text with enough length",
                 "alice",
-                List.of(111L, 222L));
+                List.of(111L));
     }
 
     private ProcessedLinkUpdateEvent awaitProcessedUpdate(String key) {

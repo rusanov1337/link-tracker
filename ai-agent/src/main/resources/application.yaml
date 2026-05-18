@@ -35,3 +35,5 @@ ai-agent:
   prioritization:
     high-keywords: ${AI_AGENT_HIGH_KEYWORDS:critical,urgent,breaking,security}
     low-keywords: ${AI_AGENT_LOW_KEYWORDS:minor,typo,chore,docs}
+  grouping:
+    window-ms: ${AI_AGENT_GROUPING_WINDOW_MS:30000}

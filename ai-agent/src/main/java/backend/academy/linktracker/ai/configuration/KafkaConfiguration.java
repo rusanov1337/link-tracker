@@ -1,5 +1,7 @@
 package backend.academy.linktracker.ai.configuration;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +19,15 @@ public class KafkaConfiguration {
     @Bean
     CommonErrorHandler kafkaErrorHandler() {
         return new DefaultErrorHandler(KafkaConfiguration::logSkippedRecord, new FixedBackOff(0L, 0L));
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    ScheduledExecutorService groupingScheduler() {
+        return Executors.newSingleThreadScheduledExecutor(runnable -> {
+            var thread = new Thread(runnable, "ai-agent-grouping");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     private static void logSkippedRecord(ConsumerRecord<?, ?> record, Exception exception) {

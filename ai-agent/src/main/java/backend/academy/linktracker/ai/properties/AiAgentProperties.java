@@ -26,6 +26,9 @@ public class AiAgentProperties {
     @Valid
     private Prioritization prioritization = new Prioritization();
 
+    @Valid
+    private Grouping grouping = new Grouping();
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -56,5 +59,14 @@ public class AiAgentProperties {
         private List<String> highKeywords = new ArrayList<>(List.of("critical", "urgent", "breaking", "security"));
 
         private List<String> lowKeywords = new ArrayList<>(List.of("minor", "typo", "chore", "docs"));
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class Grouping {
+
+        @Min(0)
+        private long windowMs = 30_000;
     }
 }
