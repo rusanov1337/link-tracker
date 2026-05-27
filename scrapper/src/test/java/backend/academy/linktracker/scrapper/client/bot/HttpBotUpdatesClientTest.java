@@ -1,19 +1,20 @@
 package backend.academy.linktracker.scrapper.client.bot;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
-import java.net.InetSocketAddress;
+import com.github.tomakehurst.wiremock.WireMockServer;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,40 +23,35 @@ import org.springframework.web.client.RestClient;
 
 class HttpBotUpdatesClientTest {
 
-    private HttpServer server;
+    private WireMockServer server;
     private HttpBotUpdatesClient client;
 
     @BeforeEach
-    void setup() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(0), 0);
+    void setup() {
+        server = new WireMockServer(wireMockConfig().dynamicPort());
         server.start();
 
-        var restClient = RestClient.builder()
-                .baseUrl("http://localhost:" + server.getAddress().getPort())
-                .build();
+        var restClient = RestClient.builder().baseUrl(server.baseUrl()).build();
         client = new HttpBotUpdatesClient(restClient);
     }
 
     @AfterEach
     void tearDown() {
         if (server != null) {
-            server.stop(0);
+            server.stop();
         }
     }
 
     @Test
     void sendLinkUpdatePostsRequestWhenBotReturnsOk() {
-        var requestBodyRef = new AtomicReference<String>();
-        server.createContext("/updates", exchange -> {
-            var body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-            requestBodyRef.set(body);
-            exchange.sendResponseHeaders(200, -1);
-            exchange.close();
-        });
+        server.stubFor(post(urlEqualTo("/updates")).willReturn(aResponse().withStatus(200)));
 
         assertDoesNotThrow(() -> client.sendLinkUpdate(
                 42L, URI.create("https://github.com/octocat/hello-world"), "Updated", List.of(1L, 2L)));
-        var requestBody = parseRequestBody(requestBodyRef.get());
+
+        var requestBody = parseRequestBody(server.findAll(postRequestedFor(urlEqualTo("/updates")))
+                .getFirst()
+                .getBodyAsString());
         assertTrue(requestBody.get("id") instanceof Number id && id.longValue() == 42L);
         assertEquals("https://github.com/octocat/hello-world", requestBody.get("url"));
         assertEquals("Updated", requestBody.get("description"));
@@ -64,10 +60,7 @@ class HttpBotUpdatesClientTest {
 
     @Test
     void sendLinkUpdateThrowsWhenBotReturnsNon2xx() {
-        server.createContext("/updates", exchange -> {
-            exchange.sendResponseHeaders(400, -1);
-            exchange.close();
-        });
+        server.stubFor(post(urlEqualTo("/updates")).willReturn(aResponse().withStatus(400)));
 
         var exception = assertThrows(
                 BotUpdatesClientException.class,
@@ -91,16 +84,13 @@ class HttpBotUpdatesClientTest {
 
     @Test
     void sendProcessingFailureReportPostsRequestWhenBotReturnsOk() {
-        var requestBodyRef = new AtomicReference<String>();
-        server.createContext("/reports", exchange -> {
-            var body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-            requestBodyRef.set(body);
-            exchange.sendResponseHeaders(200, -1);
-            exchange.close();
-        });
+        server.stubFor(post(urlEqualTo("/reports")).willReturn(aResponse().withStatus(200)));
 
         assertDoesNotThrow(() -> client.sendProcessingFailureReport("Failed links", List.of(1L, 2L)));
-        var requestBody = parseRequestBody(requestBodyRef.get());
+
+        var requestBody = parseRequestBody(server.findAll(postRequestedFor(urlEqualTo("/reports")))
+                .getFirst()
+                .getBodyAsString());
         assertEquals("Failed links", requestBody.get("description"));
         assertEquals(List.of(1, 2), requestBody.get("tgChatIds"));
     }
