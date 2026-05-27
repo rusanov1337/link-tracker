@@ -1,5 +1,9 @@
 package backend.academy.linktracker.scrapper.client.external;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,11 +13,8 @@ import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.domain.UpdateEventType;
 import backend.academy.linktracker.scrapper.properties.ResilienceProperties;
 import backend.academy.linktracker.scrapper.properties.StackoverflowProperties;
-import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
-import java.net.InetSocketAddress;
+import com.github.tomakehurst.wiremock.WireMockServer;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,16 +24,16 @@ import org.springframework.web.client.RestClient;
 
 class StackoverflowExternalLinkClientTest {
 
-    private HttpServer server;
+    private WireMockServer server;
     private StackoverflowExternalLinkClient client;
 
     @BeforeEach
-    void setup() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(0), 0);
+    void setup() {
+        server = new WireMockServer(wireMockConfig().dynamicPort());
         server.start();
 
         var properties = new StackoverflowProperties();
-        properties.setBaseUrl("http://localhost:" + server.getAddress().getPort());
+        properties.setBaseUrl(server.baseUrl());
         properties.setSite("stackoverflow");
         properties.setKey("");
         properties.setAccessToken("");
@@ -51,46 +52,18 @@ class StackoverflowExternalLinkClientTest {
     @AfterEach
     void tearDown() {
         if (server != null) {
-            server.stop(0);
+            server.stop();
         }
     }
 
     @Test
     void fetchUpdatesReturnsDetectedAnswerWhenResponseIsValid() {
-        server.createContext("/2.3/questions/12345", exchange -> {
-            var payload = "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/questions/12345/answers", exchange -> {
-            var payload = """
+        stubJson("/2.3/questions/12345", "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}");
+        stubJson("/2.3/questions/12345/answers", """
                     {"items":[{"answer_id":11,"creation_date":1735732800,"body":"<p>Answer body</p>","owner":{"display_name":"Jane"}}]}
-                    """;
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/answers/11/comments", exchange -> {
-            var payload = "{\"items\":[]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/questions/12345/comments", exchange -> {
-            var payload = "{\"items\":[]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
+                    """);
+        stubJson("/2.3/answers/11/comments", "{\"items\":[]}");
+        stubJson("/2.3/questions/12345/comments", "{\"items\":[]}");
 
         var trackedLink = TrackedLink.create(
                 1L,
@@ -108,38 +81,10 @@ class StackoverflowExternalLinkClientTest {
 
     @Test
     void fetchUpdatesReturnsEmptyWhenNoNewEventsWereFound() {
-        server.createContext("/2.3/questions/12345", exchange -> {
-            var payload = "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/questions/12345/answers", exchange -> {
-            var payload = "{\"items\":[]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/answers/11/comments", exchange -> {
-            var payload = "{\"items\":[]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/questions/12345/comments", exchange -> {
-            var payload = "{\"items\":[]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
+        stubJson("/2.3/questions/12345", "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}");
+        stubJson("/2.3/questions/12345/answers", "{\"items\":[]}");
+        stubJson("/2.3/answers/11/comments", "{\"items\":[]}");
+        stubJson("/2.3/questions/12345/comments", "{\"items\":[]}");
 
         var trackedLink = TrackedLink.create(
                 1L,
@@ -153,42 +98,14 @@ class StackoverflowExternalLinkClientTest {
 
     @Test
     void fetchUpdatesReturnsDetectedAnswerCommentWhenCommentIsNew() {
-        server.createContext("/2.3/questions/12345", exchange -> {
-            var payload = "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/questions/12345/answers", exchange -> {
-            var payload = """
+        stubJson("/2.3/questions/12345", "{\"items\":[{\"question_id\":12345,\"title\":\"Sample question\"}]}");
+        stubJson("/2.3/questions/12345/answers", """
                     {"items":[{"answer_id":11,"creation_date":1735732700,"body":"<p>Old answer</p>","owner":{"display_name":"Jane"}}]}
-                    """;
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/answers/11/comments", exchange -> {
-            var payload = """
+                    """);
+        stubJson("/2.3/answers/11/comments", """
                     {"items":[{"comment_id":77,"creation_date":1735732900,"body":"<p>Answer comment</p>","owner":{"display_name":"John"}}]}
-                    """;
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
-        server.createContext("/2.3/questions/12345/comments", exchange -> {
-            var payload = "{\"items\":[]}";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
+                    """);
+        stubJson("/2.3/questions/12345/comments", "{\"items\":[]}");
 
         var trackedLink = TrackedLink.create(
                         1L,
@@ -207,10 +124,8 @@ class StackoverflowExternalLinkClientTest {
 
     @Test
     void fetchUpdatesReturnsEmptyWhenProviderReturnsError() {
-        server.createContext("/2.3/questions/12345", exchange -> {
-            exchange.sendResponseHeaders(502, -1);
-            exchange.close();
-        });
+        server.stubFor(get(urlPathEqualTo("/2.3/questions/12345"))
+                .willReturn(aResponse().withStatus(502)));
 
         var trackedLink = TrackedLink.create(
                 1L,
@@ -228,5 +143,10 @@ class StackoverflowExternalLinkClientTest {
         assertTrue(client.supports(URI.create("https://stackoverflow.com/questions/12345/sample-question?sort=votes")));
         assertFalse(client.supports(URI.create("https://stackoverflow.com/users/12345/example")));
         assertFalse(client.supports(URI.create("https://stackoverflow.com/questions/not-a-number/example")));
+    }
+
+    private void stubJson(String path, String body) {
+        server.stubFor(
+                get(urlPathEqualTo(path)).willReturn(aResponse().withStatus(200).withBody(body)));
     }
 }

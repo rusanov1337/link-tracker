@@ -74,9 +74,6 @@ app:
       link-updates-dlq: ${KAFKA_LINK_UPDATES_DLQ_TOPIC:link-updates-dlq}
       processing-failure-reports: ${KAFKA_PROCESSING_FAILURE_REPORTS_TOPIC:processing-failure-reports}
       processing-failure-reports-dlq: ${KAFKA_PROCESSING_FAILURE_REPORTS_DLQ_TOPIC:processing-failure-reports-dlq}
-    consumer:
-      max-attempts: ${KAFKA_CONSUMER_MAX_ATTEMPTS:3}
-      retry-backoff: ${KAFKA_CONSUMER_RETRY_BACKOFF:1s}
     avro:
       schema-registry-url: ${KAFKA_SCHEMA_REGISTRY_URL:http://localhost:8085}
       auto-register-schemas: ${KAFKA_AUTO_REGISTER_SCHEMAS:true}

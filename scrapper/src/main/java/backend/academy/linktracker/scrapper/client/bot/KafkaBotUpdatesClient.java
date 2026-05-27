@@ -5,7 +5,8 @@ import backend.academy.linktracker.kafka.avro.ProcessingFailureReportEvent;
 import backend.academy.linktracker.scrapper.properties.NotificationKafkaProperties;
 import java.net.URI;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,8 @@ import org.springframework.stereotype.Component;
 @ConditionalOnExpression(
         "'${app.bot.transport:kafka}' == 'kafka' || '${app.bot.fallback.kafka-enabled:false}' == 'true'")
 public class KafkaBotUpdatesClient implements BotUpdatesClient {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaBotUpdatesClient.class);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final NotificationKafkaProperties kafkaProperties;
@@ -49,14 +52,15 @@ public class KafkaBotUpdatesClient implements BotUpdatesClient {
     }
 
     private void send(String topic, String key, Object payload) {
-        try {
-            kafkaTemplate.send(topic, key, payload).get();
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new BotUpdatesClientException("Kafka notification publishing was interrupted", exception);
-        } catch (ExecutionException exception) {
-            throw new BotUpdatesClientException("Kafka notification publishing failed", exception);
-        }
+        kafkaTemplate.send(topic, key, payload).whenComplete((result, exception) -> {
+            if (exception != null) {
+                LOGGER.atWarn()
+                        .addKeyValue("topic", topic)
+                        .addKeyValue("key", key)
+                        .setCause(exception)
+                        .log("Kafka notification publishing failed");
+            }
+        });
     }
 
     private String buildReportKey(List<Long> tgChatIds) {

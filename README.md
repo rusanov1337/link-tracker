@@ -228,7 +228,8 @@ export BOT_FALLBACK_KAFKA_ENABLED="true"
 - `VALKEY_CLUSTER_NODES`
 - `VALKEY_CLUSTER_MAX_REDIRECTS`
 
-Valkey-кластер в `docker-compose` состоит из трех нод без реплик. Слоты распределяются между тремя master-нодами, данные сохраняются в named volumes.
+Valkey-кластер в `docker-compose` состоит из трех master-нод без реплик. Слоты распределяются между master-нодами, данные сохраняются в named volumes.
+Ограничение этой конфигурации: при падении одной ноды часть hash-слотов становится недоступна; для полноценной отказоустойчивости нужен кластер из шести нод `3 master + 3 replica`.
 Client-side cache включается отдельно и работает для standalone-подключения к Valkey; при включенном `VALKEY_CLUSTER_ENABLED` используется только общий кэш в Valkey.
 
 ### Нагрузочная проверка кэширования

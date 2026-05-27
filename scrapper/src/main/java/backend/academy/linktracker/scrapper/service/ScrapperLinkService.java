@@ -90,22 +90,23 @@ public class ScrapperLinkService {
 
     @Transactional(readOnly = true)
     public ListLinksResponse getLinks(long chatId) {
-        ensureChatExists(chatId);
-        var cachedResponse = trackedLinksCacheService.get(chatId);
-        if (cachedResponse.isPresent()) {
-            var response = cachedResponse.orElseThrow();
-            LOGGER.atInfo()
-                    .addKeyValue("operation", "getLinks")
-                    .addKeyValue("chatId", chatId)
-                    .addKeyValue("cacheHit", true)
-                    .addKeyValue("linksCount", response.size())
-                    .log("Tracked links listed from cache");
-            return response;
-        }
-
-        var response = loadLinks(chatId);
-        trackedLinksCacheService.put(chatId, response);
-        return response;
+        return trackedLinksCacheService
+                .get(chatId)
+                .map(response -> {
+                    LOGGER.atInfo()
+                            .addKeyValue("operation", "getLinks")
+                            .addKeyValue("chatId", chatId)
+                            .addKeyValue("cacheHit", true)
+                            .addKeyValue("linksCount", response.size())
+                            .log("Tracked links listed from cache");
+                    return response;
+                })
+                .orElseGet(() -> {
+                    ensureChatExists(chatId);
+                    var response = loadLinks(chatId);
+                    trackedLinksCacheService.put(chatId, response);
+                    return response;
+                });
     }
 
     private ListLinksResponse loadLinks(long chatId) {
