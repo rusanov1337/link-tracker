@@ -2,15 +2,11 @@ package backend.academy.linktracker.scrapper.properties;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Positive;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.convert.DurationUnit;
 import org.springframework.validation.annotation.Validated;
 
 @ConfigurationProperties(prefix = "app.kafka")
@@ -23,9 +19,6 @@ public class NotificationKafkaProperties {
 
     @Valid
     private Topics topics = new Topics();
-
-    @Valid
-    private Consumer consumer = new Consumer();
 
     @Valid
     private Avro avro = new Avro();
@@ -47,19 +40,6 @@ public class NotificationKafkaProperties {
 
         @NotBlank
         private String processingFailureReportsDlq = "processing-failure-reports-dlq";
-    }
-
-    @Getter
-    @Setter
-    @EqualsAndHashCode
-    @NoArgsConstructor
-    public static class Consumer {
-
-        @Positive
-        private int maxAttempts = 3;
-
-        @DurationUnit(ChronoUnit.MILLIS)
-        private Duration retryBackoff = Duration.ofSeconds(1);
     }
 
     @Getter
