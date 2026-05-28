@@ -12,4 +12,6 @@ public record RateLimitingProperties(
         boolean enabled,
         @Min(1) int limitForPeriod,
         @NotNull Duration limitRefreshPeriod,
-        @NotNull Duration timeoutDuration) {}
+        @NotNull Duration timeoutDuration,
+        @Min(1) long cacheMaximumSize,
+        @NotNull Duration cacheExpireAfterAccess) {}

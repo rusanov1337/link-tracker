@@ -55,7 +55,7 @@ class HttpResilienceExecutorTest {
         assertThrows(CallNotPermittedException.class, () -> executor.execute("half-open-close", () -> "blocked"));
         assertEquals(2, calls.get());
 
-        waitForOpenStateDelay();
+        waitForHalfOpenState(executor, "half-open-close");
 
         assertEquals("ok", executor.execute("half-open-close", () -> success(calls)));
         assertEquals("ok", executor.execute("half-open-close", () -> success(calls)));
@@ -76,7 +76,7 @@ class HttpResilienceExecutorTest {
                 CircuitBreaker.State.OPEN,
                 executor.circuitBreaker("half-open-open").getState());
 
-        waitForOpenStateDelay();
+        waitForHalfOpenState(executor, "half-open-open");
 
         assertThrows(RuntimeException.class, () -> executor.execute("half-open-open", () -> fail(calls)));
         assertThrows(RuntimeException.class, () -> executor.execute("half-open-open", () -> fail(calls)));
@@ -111,9 +111,10 @@ class HttpResilienceExecutorTest {
         return new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    private void waitForOpenStateDelay() {
-        await().pollDelay(Duration.ofMillis(75)).atMost(Duration.ofMillis(200)).untilAsserted(() -> assertThat(true)
-                .isTrue());
+    private void waitForHalfOpenState(HttpResilienceExecutor executor, String clientName) {
+        await().pollDelay(Duration.ofMillis(75))
+                .atMost(Duration.ofMillis(200))
+                .until(() -> executor.circuitBreaker(clientName).getState() == CircuitBreaker.State.HALF_OPEN);
     }
 
     private List<Duration> intervals(List<Long> attemptTimes) {
