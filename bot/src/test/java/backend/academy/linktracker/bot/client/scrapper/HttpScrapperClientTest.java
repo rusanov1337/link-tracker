@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import backend.academy.linktracker.bot.client.http.HttpResilienceExecutor;
 import backend.academy.linktracker.bot.properties.ResilienceProperties;
 import backend.academy.linktracker.bot.properties.ScrapperProperties;
+import backend.academy.linktracker.bot.service.BotMetricsService;
 import com.sun.net.httpserver.HttpServer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +36,7 @@ class HttpScrapperClientTest {
         resilienceProperties = new ResilienceProperties();
         resilienceProperties.getRetry().setBackoff(Duration.ofMillis(10));
         client = new HttpScrapperClient(
-                restClient(scrapperProperties), new HttpResilienceExecutor(resilienceProperties));
+                restClient(scrapperProperties), new HttpResilienceExecutor(resilienceProperties), botMetricsService());
     }
 
     @AfterEach
@@ -110,7 +112,7 @@ class HttpScrapperClientTest {
         var scrapperProperties = scrapperProperties();
         scrapperProperties.getHttp().setReadTimeout(Duration.ofMillis(100));
         var timeoutClient = new HttpScrapperClient(
-                restClient(scrapperProperties), new HttpResilienceExecutor(resilienceProperties));
+                restClient(scrapperProperties), new HttpResilienceExecutor(resilienceProperties), botMetricsService());
 
         var startedAt = System.nanoTime();
         assertThrows(ScrapperClientException.class, () -> timeoutClient.getLinks(1L));
@@ -153,5 +155,9 @@ class HttpScrapperClientTest {
                 .baseUrl(properties.getBaseUrl())
                 .requestFactory(requestFactory)
                 .build();
+    }
+
+    private BotMetricsService botMetricsService() {
+        return new BotMetricsService(new SimpleMeterRegistry());
     }
 }

@@ -21,6 +21,7 @@ public class LinkUpdateNotificationService {
     private final PendingLinkUpdateStore pendingLinkUpdateStore;
     private final PendingFailureReportStore pendingFailureReportStore;
     private final RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore;
+    private final BotMetricsService botMetricsService;
 
     public void process(LinkUpdate linkUpdate) {
         var pendingUpdates = new ArrayList<PendingLinkUpdate>();
@@ -154,6 +155,7 @@ public class LinkUpdateNotificationService {
                 return false;
             }
             if (response.isOk()) {
+                botMetricsService.incrementSentNotificationsTotal();
                 log.atInfo()
                         .addKeyValue("operation", "sendUpdateNotification")
                         .addKeyValue("chatId", chatId)

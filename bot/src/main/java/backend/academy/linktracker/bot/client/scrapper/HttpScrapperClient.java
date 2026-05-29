@@ -6,6 +6,7 @@ import backend.academy.linktracker.bot.client.scrapper.dto.ApiErrorResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.LinkResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.ListLinksResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.RemoveLinkRequest;
+import backend.academy.linktracker.bot.service.BotMetricsService;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,15 +26,20 @@ public class HttpScrapperClient implements ScrapperClient {
 
     private final RestClient restClient;
     private final HttpResilienceExecutor resilienceExecutor;
+    private final BotMetricsService botMetricsService;
 
     public HttpScrapperClient(
-            @Qualifier("scrapperRestClient") RestClient restClient, HttpResilienceExecutor resilienceExecutor) {
+            @Qualifier("scrapperRestClient") RestClient restClient,
+            HttpResilienceExecutor resilienceExecutor,
+            BotMetricsService botMetricsService) {
         this.restClient = restClient;
         this.resilienceExecutor = resilienceExecutor;
+        this.botMetricsService = botMetricsService;
     }
 
     @Override
     public void ensureChatRegistered(long chatId) {
+        var startNanos = System.nanoTime();
         try {
             resilienceExecutor.execute(CLIENT_NAME, () -> {
                 restClient.post().uri("/tg-chat/{id}", chatId).retrieve().toBodilessEntity();
@@ -48,11 +54,15 @@ public class HttpScrapperClient implements ScrapperClient {
             throw new ScrapperClientException(0, "Scrapper circuit breaker is open", exception);
         } catch (RestClientException exception) {
             throw new ScrapperClientException(0, "Failed to register chat in scrapper", exception);
+        } finally {
+            botMetricsService.recordCommandDuration(
+                    "scrapper_sync_api", "registerChat", System.nanoTime() - startNanos);
         }
     }
 
     @Override
     public ListLinksResponse getLinks(long chatId) {
+        var startNanos = System.nanoTime();
         try {
             var response = resilienceExecutor.execute(CLIENT_NAME, () -> restClient
                     .get()
@@ -67,11 +77,14 @@ public class HttpScrapperClient implements ScrapperClient {
             throw new ScrapperClientException(0, "Scrapper circuit breaker is open", exception);
         } catch (RestClientException exception) {
             throw new ScrapperClientException(0, "Failed to list links in scrapper", exception);
+        } finally {
+            botMetricsService.recordCommandDuration("scrapper_sync_api", "getLinks", System.nanoTime() - startNanos);
         }
     }
 
     @Override
     public LinkResponse addLink(long chatId, String link, List<String> tags, List<String> filters) {
+        var startNanos = System.nanoTime();
         try {
             return resilienceExecutor.execute(CLIENT_NAME, () -> restClient
                     .post()
@@ -86,11 +99,14 @@ public class HttpScrapperClient implements ScrapperClient {
             throw new ScrapperClientException(0, "Scrapper circuit breaker is open", exception);
         } catch (RestClientException exception) {
             throw new ScrapperClientException(0, "Failed to add link in scrapper", exception);
+        } finally {
+            botMetricsService.recordCommandDuration("scrapper_sync_api", "addLink", System.nanoTime() - startNanos);
         }
     }
 
     @Override
     public LinkResponse removeLink(long chatId, String link) {
+        var startNanos = System.nanoTime();
         try {
             return resilienceExecutor.execute(CLIENT_NAME, () -> restClient
                     .method(HttpMethod.DELETE)
@@ -105,6 +121,8 @@ public class HttpScrapperClient implements ScrapperClient {
             throw new ScrapperClientException(0, "Scrapper circuit breaker is open", exception);
         } catch (RestClientException exception) {
             throw new ScrapperClientException(0, "Failed to remove link in scrapper", exception);
+        } finally {
+            botMetricsService.recordCommandDuration("scrapper_sync_api", "removeLink", System.nanoTime() - startNanos);
         }
     }
 

@@ -20,11 +20,15 @@ public class LinkUpdateFetchService {
 
     private final List<ExternalLinkClient> externalLinkClients;
     private final SchedulerProperties schedulerProperties;
+    private final ScrapperMetricsService scrapperMetricsService;
 
     public LinkUpdateFetchService(
-            List<ExternalLinkClient> externalLinkClients, SchedulerProperties schedulerProperties) {
+            List<ExternalLinkClient> externalLinkClients,
+            SchedulerProperties schedulerProperties,
+            ScrapperMetricsService scrapperMetricsService) {
         this.externalLinkClients = externalLinkClients;
         this.schedulerProperties = schedulerProperties;
+        this.scrapperMetricsService = scrapperMetricsService;
     }
 
     List<FetchedLinkState> fetchBatchStates(List<TrackedLink> links, ExecutorService executorService) {
@@ -65,7 +69,16 @@ public class LinkUpdateFetchService {
                 return FetchedLinkState.noSupportedClient(trackedLink);
             }
 
-            return FetchedLinkState.success(trackedLink, client.orElseThrow().fetchUpdates(trackedLink));
+            var startNanos = System.nanoTime();
+            try {
+                return FetchedLinkState.success(
+                        trackedLink, client.orElseThrow().fetchUpdates(trackedLink));
+            } finally {
+                scrapperMetricsService.recordRequestDuration(
+                        "external_source",
+                        ScrapperMetricsService.trackedSource(trackedLink.url()),
+                        System.nanoTime() - startNanos);
+            }
         } catch (RuntimeException exception) {
             LOGGER.atWarn()
                     .addKeyValue("operation", "checkSingleLink")

@@ -33,6 +33,7 @@ public class LinkUpdatePollingService {
     private final LinkUpdateNotificationDispatcher notificationDispatcher;
     private final SchedulerProperties schedulerProperties;
     private final TransactionTemplate transactionTemplate;
+    private final ScrapperMetricsService scrapperMetricsService;
 
     public LinkUpdatePollingService(
             TrackedLinkRepository trackedLinkRepository,
@@ -40,13 +41,15 @@ public class LinkUpdatePollingService {
             LinkUpdateFetchService linkUpdateFetchService,
             LinkUpdateNotificationDispatcher notificationDispatcher,
             SchedulerProperties schedulerProperties,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ScrapperMetricsService scrapperMetricsService) {
         this.trackedLinkRepository = trackedLinkRepository;
         this.linkSubscriptionRepository = linkSubscriptionRepository;
         this.linkUpdateFetchService = linkUpdateFetchService;
         this.notificationDispatcher = notificationDispatcher;
         this.schedulerProperties = schedulerProperties;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.scrapperMetricsService = scrapperMetricsService;
     }
 
     public void checkUpdates() {
@@ -102,8 +105,10 @@ public class LinkUpdatePollingService {
         var processingOwner = UUID.randomUUID().toString();
         var claimedAt = Instant.now();
         var processingUntil = claimedAt.plus(schedulerProperties.getProcessingLease());
+        var databaseStartNanos = System.nanoTime();
         var links = transactionTemplate.execute(status -> trackedLinkRepository.claimNextPageToCheck(
                 checkedAt, processingOwner, claimedAt, processingUntil, schedulerProperties.getBatchSize()));
+        scrapperMetricsService.recordRequestDuration("database", "links", System.nanoTime() - databaseStartNanos);
         if (links.isEmpty()) {
             return BatchOutcome.empty();
         }

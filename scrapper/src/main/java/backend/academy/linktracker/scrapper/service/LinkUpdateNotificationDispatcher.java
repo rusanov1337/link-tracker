@@ -28,16 +28,19 @@ public class LinkUpdateNotificationDispatcher {
     private final LinkUpdateDescriptionFormatter linkUpdateDescriptionFormatter;
     private final NotificationOutboxRepository notificationOutboxRepository;
     private final TransactionTemplate transactionTemplate;
+    private final ScrapperMetricsService scrapperMetricsService;
 
     public LinkUpdateNotificationDispatcher(
             BotUpdatesClient botUpdatesClient,
             LinkUpdateDescriptionFormatter linkUpdateDescriptionFormatter,
             NotificationOutboxRepository notificationOutboxRepository,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ScrapperMetricsService scrapperMetricsService) {
         this.botUpdatesClient = botUpdatesClient;
         this.linkUpdateDescriptionFormatter = linkUpdateDescriptionFormatter;
         this.notificationOutboxRepository = notificationOutboxRepository;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.scrapperMetricsService = scrapperMetricsService;
     }
 
     void stageNotifications(List<PendingNotification> notifications, Instant createdAt) {
@@ -120,7 +123,10 @@ public class LinkUpdateNotificationDispatcher {
 
     private boolean notifyBot(long trackedLinkId, URI trackedLinkUrl, String description, List<Long> chatIds) {
         try {
+            var startNanos = System.nanoTime();
             botUpdatesClient.sendLinkUpdate(trackedLinkId, trackedLinkUrl, description, chatIds);
+            scrapperMetricsService.recordRequestDuration(
+                    "bot_transport", "link_update", System.nanoTime() - startNanos);
             LOGGER.atInfo()
                     .addKeyValue("operation", "notifyBot")
                     .addKeyValue("linkId", trackedLinkId)
@@ -144,7 +150,10 @@ public class LinkUpdateNotificationDispatcher {
 
     private boolean sendFailureReport(OutboxFailureReport report) {
         try {
+            var startNanos = System.nanoTime();
             botUpdatesClient.sendProcessingFailureReport(report.description(), report.chatIds());
+            scrapperMetricsService.recordRequestDuration(
+                    "bot_transport", "processing_failure_report", System.nanoTime() - startNanos);
             LOGGER.atInfo()
                     .addKeyValue("operation", "sendFailureReport")
                     .addKeyValue("chatIdsCount", report.chatIds().size())

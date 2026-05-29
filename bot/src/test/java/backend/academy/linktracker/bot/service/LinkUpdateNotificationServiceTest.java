@@ -13,6 +13,7 @@ import backend.academy.linktracker.bot.kafka.KafkaNotificationDeliveryException;
 import backend.academy.linktracker.bot.properties.TelegramProperties;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.response.SendResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -23,8 +24,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var successResponse = successResponse();
         var failureResponse = failureResponse();
 
@@ -45,8 +45,7 @@ class LinkUpdateNotificationServiceTest {
         var pendingFailureReportStore = new PendingFailureReportStore();
         pendingLinkUpdateStore.saveAll(
                 List.of(new PendingLinkUpdate(1L, 22L, "https://github.com/user/repo", "updated")));
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -61,8 +60,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
 
         when(telegramBot.execute(any())).thenReturn(null);
 
@@ -78,8 +76,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
 
         when(telegramBot.execute(any())).thenReturn(null);
 
@@ -97,8 +94,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -116,8 +112,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -134,8 +129,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var failureResponse = failureResponse();
 
         when(telegramBot.execute(any())).thenReturn(failureResponse);
@@ -153,8 +147,7 @@ class LinkUpdateNotificationServiceTest {
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
         pendingFailureReportStore.saveAll(List.of(new PendingFailureReport(22L, "Failed links")));
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var successResponse = successResponse();
 
         when(telegramBot.execute(any())).thenReturn(successResponse);
@@ -169,8 +162,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var failureResponse = failureResponse();
 
         when(telegramBot.execute(any())).thenReturn(failureResponse);
@@ -187,8 +179,7 @@ class LinkUpdateNotificationServiceTest {
         var telegramBot = mock(TelegramBot.class);
         var pendingLinkUpdateStore = new PendingLinkUpdateStore();
         var pendingFailureReportStore = new PendingFailureReportStore();
-        var service = new LinkUpdateNotificationService(
-                telegramBot, pendingLinkUpdateStore, pendingFailureReportStore, recentlyDeliveredLinkUpdateStore());
+        var service = newService(telegramBot, pendingLinkUpdateStore, pendingFailureReportStore);
         var failureResponse = failureResponse();
 
         when(telegramBot.execute(any())).thenReturn(failureResponse);
@@ -201,6 +192,18 @@ class LinkUpdateNotificationServiceTest {
 
     private RecentlyDeliveredLinkUpdateStore recentlyDeliveredLinkUpdateStore() {
         return new RecentlyDeliveredLinkUpdateStore(new TelegramProperties());
+    }
+
+    private LinkUpdateNotificationService newService(
+            TelegramBot telegramBot,
+            PendingLinkUpdateStore pendingLinkUpdateStore,
+            PendingFailureReportStore pendingFailureReportStore) {
+        return new LinkUpdateNotificationService(
+                telegramBot,
+                pendingLinkUpdateStore,
+                pendingFailureReportStore,
+                recentlyDeliveredLinkUpdateStore(),
+                new BotMetricsService(new SimpleMeterRegistry()));
     }
 
     private SendResponse successResponse() {

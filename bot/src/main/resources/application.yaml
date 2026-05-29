@@ -1,6 +1,24 @@
 server:
   port: 8080
 
+management:
+  server:
+    port: ${BOT_MANAGEMENT_PORT:8011}
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health,info,prometheus
+      path-mapping:
+        prometheus: metrics
+  endpoint:
+    prometheus:
+      access: unrestricted
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
 spring:
   application:
     name: bot

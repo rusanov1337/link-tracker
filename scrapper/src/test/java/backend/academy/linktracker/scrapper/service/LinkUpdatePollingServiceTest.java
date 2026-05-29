@@ -14,6 +14,7 @@ import backend.academy.linktracker.scrapper.properties.SchedulerProperties;
 import backend.academy.linktracker.scrapper.repository.NotificationOutboxRepository;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryLinkSubscriptionRepository;
 import backend.academy.linktracker.scrapper.repository.memory.InMemoryTrackedLinkRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -340,16 +341,22 @@ class LinkUpdatePollingServiceTest {
         schedulerProperties.setBatchSize(batchSize);
         schedulerProperties.setParallelism(parallelism);
         var notificationOutboxRepository = new InMemoryNotificationOutboxRepository();
-        var fetchService = new LinkUpdateFetchService(externalClients, schedulerProperties);
+        var metricsService = new ScrapperMetricsService(new SimpleMeterRegistry(), trackedLinkRepository);
+        var fetchService = new LinkUpdateFetchService(externalClients, schedulerProperties, metricsService);
         var notificationDispatcher = new LinkUpdateNotificationDispatcher(
-                botClient, linkUpdateDescriptionFormatter, notificationOutboxRepository, new NoOpTransactionManager());
+                botClient,
+                linkUpdateDescriptionFormatter,
+                notificationOutboxRepository,
+                new NoOpTransactionManager(),
+                metricsService);
         return new LinkUpdatePollingService(
                 trackedLinkRepository,
                 linkSubscriptionRepository,
                 fetchService,
                 notificationDispatcher,
                 schedulerProperties,
-                new NoOpTransactionManager());
+                new NoOpTransactionManager(),
+                metricsService);
     }
 
     private record Notification(long id, URI url, String description, List<Long> tgChatIds) {}

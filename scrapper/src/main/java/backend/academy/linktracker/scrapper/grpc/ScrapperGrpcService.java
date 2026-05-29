@@ -15,6 +15,7 @@ import backend.academy.linktracker.scrapper.exception.LinkAlreadyTrackedExceptio
 import backend.academy.linktracker.scrapper.exception.LinkNotFoundException;
 import backend.academy.linktracker.scrapper.exception.UnsupportedLinkException;
 import backend.academy.linktracker.scrapper.service.ScrapperLinkService;
+import backend.academy.linktracker.scrapper.service.ScrapperMetricsService;
 import io.grpc.Metadata;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -27,13 +28,16 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
             Metadata.Key.of("error-code", Metadata.ASCII_STRING_MARSHALLER);
 
     private final ScrapperLinkService scrapperLinkService;
+    private final ScrapperMetricsService scrapperMetricsService;
 
-    public ScrapperGrpcService(ScrapperLinkService scrapperLinkService) {
+    public ScrapperGrpcService(ScrapperLinkService scrapperLinkService, ScrapperMetricsService scrapperMetricsService) {
         this.scrapperLinkService = scrapperLinkService;
+        this.scrapperMetricsService = scrapperMetricsService;
     }
 
     @Override
     public void registerChat(RegisterChatRequest request, StreamObserver<Empty> responseObserver) {
+        scrapperMetricsService.incrementApiRequests("grpc");
         handle(responseObserver, () -> {
             validateChatId(request.getChatId());
             scrapperLinkService.registerChat(request.getChatId());
@@ -43,6 +47,7 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
 
     @Override
     public void deleteChat(DeleteChatRequest request, StreamObserver<Empty> responseObserver) {
+        scrapperMetricsService.incrementApiRequests("grpc");
         handle(responseObserver, () -> {
             validateChatId(request.getChatId());
             scrapperLinkService.deleteChat(request.getChatId());
@@ -52,6 +57,7 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
 
     @Override
     public void listLinks(ListLinksRequest request, StreamObserver<ListLinksResponse> responseObserver) {
+        scrapperMetricsService.incrementApiRequests("grpc");
         handle(responseObserver, () -> {
             validateChatId(request.getChatId());
             var response = scrapperLinkService.getLinks(request.getChatId());
@@ -66,6 +72,7 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
 
     @Override
     public void addLink(AddLinkRequest request, StreamObserver<LinkResponse> responseObserver) {
+        scrapperMetricsService.incrementApiRequests("grpc");
         handle(responseObserver, () -> {
             validateChatId(request.getChatId());
             if (request.getLink().isBlank()) {
@@ -81,6 +88,7 @@ public class ScrapperGrpcService extends ScrapperServiceGrpc.ScrapperServiceImpl
 
     @Override
     public void removeLink(RemoveLinkRequest request, StreamObserver<LinkResponse> responseObserver) {
+        scrapperMetricsService.incrementApiRequests("grpc");
         handle(responseObserver, () -> {
             validateChatId(request.getChatId());
             if (request.getLink().isBlank()) {

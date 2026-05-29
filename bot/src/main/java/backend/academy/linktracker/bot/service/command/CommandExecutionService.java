@@ -19,6 +19,7 @@ public class CommandExecutionService {
         var responseType = handlerOptional.isPresent() ? "known-command-message" : "unknown-command-message";
         var metricCommand = handlerOptional.map(CommandHandler::command).orElse("unknown");
         var handler = handlerOptional.orElseGet(commandRegistry::fallback);
+        var startNanos = System.nanoTime();
         try {
             var response = handler.handle(commandRequest, commandRegistry.supportedCommands());
             botMetricsService.incrementCommandsTotal(metricCommand, "success");
@@ -39,6 +40,8 @@ public class CommandExecutionService {
                     .setCause(exception)
                     .log("Command handling failed");
             throw exception;
+        } finally {
+            botMetricsService.recordCommandDuration("command", metricCommand, System.nanoTime() - startNanos);
         }
     }
 
