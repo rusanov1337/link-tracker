@@ -1,0 +1,130 @@
+# Link Tracker PromQL examples
+
+## RED metrics
+
+# Request rate by application and URI.
+sum by (application, uri) (
+  rate(http_server_requests_seconds_count{application=~"$application"}[1m])
+)
+
+# 5xx error rate by application and URI.
+sum by (application, uri) (
+  rate(http_server_requests_seconds_count{application=~"$application", status=~"5.."}[1m])
+)
+
+# Error ratio by application.
+sum by (application) (
+  rate(http_server_requests_seconds_count{application=~"$application", status=~"5.."}[1m])
+)
+/
+sum by (application) (
+  rate(http_server_requests_seconds_count{application=~"$application"}[1m])
+)
+
+# HTTP request latency P50.
+histogram_quantile(
+  0.50,
+  sum by (le, application, uri) (
+    rate(http_server_requests_seconds_bucket{application=~"$application"}[5m])
+  )
+)
+
+# HTTP request latency P95.
+histogram_quantile(
+  0.95,
+  sum by (le, application, uri) (
+    rate(http_server_requests_seconds_bucket{application=~"$application"}[5m])
+  )
+)
+
+# HTTP request latency P99.
+histogram_quantile(
+  0.99,
+  sum by (le, application, uri) (
+    rate(http_server_requests_seconds_bucket{application=~"$application"}[5m])
+  )
+)
+
+# JVM memory usage by application and memory area.
+sum by (application, area) (
+  jvm_memory_used_bytes{application=~"$application"}
+)
+
+## Business metrics
+
+# User Telegram messages per second.
+sum by (application, request_type) (
+  rate(telegram_requests_total{application="bot"}[1m])
+)
+
+# Active tracked links grouped by source domain.
+links_on_track_total{application="scrapper"}
+
+# Scrape/external-source operation duration P50 by source.
+histogram_quantile(
+  0.50,
+  sum by (le, scope_type) (
+    rate(request_duration_ms_total_seconds_bucket{application="scrapper", scope="external_source"}[5m])
+  )
+)
+
+# Scrape/external-source operation duration P95 by source.
+histogram_quantile(
+  0.95,
+  sum by (le, scope_type) (
+    rate(request_duration_ms_total_seconds_bucket{application="scrapper", scope="external_source"}[5m])
+  )
+)
+
+# Scrape/external-source operation duration P99 by source.
+histogram_quantile(
+  0.99,
+  sum by (le, scope_type) (
+    rate(request_duration_ms_total_seconds_bucket{application="scrapper", scope="external_source"}[5m])
+  )
+)
+
+# Bot command processing duration P50 by command.
+histogram_quantile(
+  0.50,
+  sum by (le, scope_type) (
+    rate(command_duration_ms_total_seconds_bucket{application="bot", scope="command"}[5m])
+  )
+)
+
+# Bot command processing duration P95 by command.
+histogram_quantile(
+  0.95,
+  sum by (le, scope_type) (
+    rate(command_duration_ms_total_seconds_bucket{application="bot", scope="command"}[5m])
+  )
+)
+
+# Bot command processing duration P99 by command.
+histogram_quantile(
+  0.99,
+  sum by (le, scope_type) (
+    rate(command_duration_ms_total_seconds_bucket{application="bot", scope="command"}[5m])
+  )
+)
+
+# Scrapper API requests by source.
+sum by (source) (
+  rate(api_requests_total{application="scrapper"}[1m])
+)
+
+# Bot command requests by command.
+sum by (command, status) (
+  rate(command_requests_total{application="bot"}[1m])
+)
+
+# Notifications sent per second.
+rate(sent_notification_total{application="bot"}[1m])
+
+# Bot calls to Scrapper API duration P95.
+histogram_quantile(
+  0.95,
+  sum by (le, scope_type) (
+    rate(command_duration_ms_total_seconds_bucket{application="bot", scope="scrapper_sync_api"}[5m])
+  )
+)
