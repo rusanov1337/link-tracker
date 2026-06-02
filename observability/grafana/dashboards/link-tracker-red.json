@@ -213,7 +213,7 @@
       },
       "targets": [
         {
-          "expr": "links_on_track_total{application=~\"$application\"}",
+          "expr": "links_on_track{application=~\"$application\"}",
           "legendFormat": "{{tracked_source}}",
           "refId": "A"
         }

@@ -22,6 +22,7 @@ Endpoints:
 - `observability/grafana/provisioning/datasources/prometheus.yml`
 - `observability/grafana/provisioning/dashboards/dashboards.yml`
 - `observability/grafana/dashboards/link-tracker-red.json`
+- `observability/grafana/dashboards/link-tracker-business.json`
 - `example_pql.txt`
 
 ## Запуск
@@ -72,7 +73,7 @@ http://localhost:9090/targets
 
 ## Метрики Scrapper
 
-`links_on_track_total`
+`links_on_track`
 
 - Type: Gauge
 - Labels: `tracked_source`
@@ -151,6 +152,19 @@ http://localhost:9090/targets
 - active tracked links.
 
 Dashboard параметризован переменной `application`, которая строится по label из Prometheus target.
+
+В Grafana dashboard `Link Tracker Business Metrics` добавлены:
+
+- количество пользовательских Telegram-сообщений в секунду;
+- количество активных ссылок по домену;
+- количество отправленных уведомлений в секунду;
+- p50/p95/p99 длительности scrape-операций по источнику;
+- p50/p95/p99 длительности обработки команд Bot;
+- количество обработанных команд Bot по команде и статусу;
+- количество запросов к Scrapper API по источнику;
+- p50/p95/p99 длительности вызовов Scrapper API из Bot.
+
+Business dashboard параметризован переменной `app_type` со значениями `bot` / `scrapper`.
 
 ## PromQL
 

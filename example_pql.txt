@@ -58,7 +58,7 @@ sum by (application, request_type) (
 )
 
 # Active tracked links grouped by source domain.
-links_on_track_total{application="scrapper"}
+links_on_track{application="scrapper"}
 
 # Scrape/external-source operation duration P50 by source.
 histogram_quantile(

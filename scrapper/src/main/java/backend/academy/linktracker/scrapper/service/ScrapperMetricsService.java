@@ -81,7 +81,7 @@ public class ScrapperMetricsService {
                 io.micrometer.core.instrument.Tags.of("tracked_source", source),
                 trackedLinkRepository,
                 repository -> repository.findAll().stream()
-                        .filter(link -> source.equals(ScrapperMetricsService.trackedSource(link.url())))
+                        .filter(link -> source.equals(trackedSource(link.url())))
                         .count());
     }
 }
