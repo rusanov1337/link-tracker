@@ -21,15 +21,16 @@ public class SqlNotificationOutboxRepository implements NotificationOutboxReposi
     private static final String LINK_UPDATE_EVENT_TYPE = "LINK_UPDATE";
     private static final String PROCESSING_FAILURE_REPORT_EVENT_TYPE = "PROCESSING_FAILURE_REPORT";
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     private final JdbcClient jdbcClient;
     private final RowMapper<OutboxNotification> outboxNotificationRowMapper =
             (resultSet, rowNum) -> mapOutboxNotification(resultSet);
     private final RowMapper<OutboxFailureReport> outboxFailureReportRowMapper =
             (resultSet, rowNum) -> mapOutboxFailureReport(resultSet);
 
-    public SqlNotificationOutboxRepository(JdbcClient jdbcClient) {
+    public SqlNotificationOutboxRepository(JdbcClient jdbcClient, ObjectMapper objectMapper) {
         this.jdbcClient = jdbcClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override

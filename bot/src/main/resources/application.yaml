@@ -66,6 +66,8 @@ app:
     limit-for-period: ${RATE_LIMITING_LIMIT_FOR_PERIOD:1000}
     limit-refresh-period: ${RATE_LIMITING_LIMIT_REFRESH_PERIOD:1m}
     timeout-duration: ${RATE_LIMITING_TIMEOUT_DURATION:0ms}
+    cache-maximum-size: ${RATE_LIMITING_CACHE_MAXIMUM_SIZE:10000}
+    cache-expire-after-access: ${RATE_LIMITING_CACHE_EXPIRE_AFTER_ACCESS:10m}
   kafka:
     topics:
       link-updates: ${KAFKA_LINK_UPDATES_TOPIC:link-updates}

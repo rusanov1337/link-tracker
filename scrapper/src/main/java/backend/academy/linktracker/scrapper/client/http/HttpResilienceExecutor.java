@@ -54,6 +54,7 @@ public class HttpResilienceExecutor {
                 .failureRateThreshold(circuitBreakerProperties.getFailureRateThreshold())
                 .permittedNumberOfCallsInHalfOpenState(circuitBreakerProperties.getPermittedCallsInHalfOpenState())
                 .waitDurationInOpenState(circuitBreakerProperties.getWaitDurationInOpenState())
+                .automaticTransitionFromOpenToHalfOpenEnabled(true)
                 .recordException(exception -> !(exception instanceof CallNotPermittedException))
                 .build();
         return CircuitBreaker.of(clientName, circuitBreakerConfig);

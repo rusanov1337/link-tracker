@@ -24,10 +24,11 @@ public final class TrackedLinksCacheService {
 
     public TrackedLinksCacheService(
             StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper,
             TrackedLinksCacheProperties properties,
             ObjectProvider<TrackedLinksClientSideCache> clientSideCache) {
         this.redisTemplate = redisTemplate;
-        this.objectMapper = new ObjectMapper().findAndRegisterModules();
+        this.objectMapper = objectMapper;
         this.properties = properties;
         this.clientSideCache = Optional.ofNullable(clientSideCache.getIfAvailable());
     }

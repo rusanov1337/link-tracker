@@ -1,7 +1,10 @@
 package backend.academy.linktracker.ai.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import backend.academy.linktracker.ai.dto.ProcessedLinkUpdateEvent;
 import backend.academy.linktracker.ai.dto.UpdatePriority;
@@ -9,6 +12,7 @@ import backend.academy.linktracker.ai.kafka.ProcessedUpdateProducer;
 import backend.academy.linktracker.ai.properties.AiAgentProperties;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.awaitility.Awaitility;
@@ -30,6 +34,7 @@ class UpdateGroupingServiceTest {
         properties.getGrouping().setWindowMs(10);
         scheduler = Executors.newSingleThreadScheduledExecutor();
         producer = Mockito.mock(ProcessedUpdateProducer.class);
+        when(producer.send(any())).thenReturn(CompletableFuture.completedFuture(null));
         groupingService = new UpdateGroupingService(properties, producer, scheduler);
     }
 
@@ -63,11 +68,38 @@ class UpdateGroupingServiceTest {
         assertThat(sent.priority()).isEqualTo(UpdatePriority.MEDIUM);
     }
 
+    @Test
+    void retriesGroupWhenProducerThrows() {
+        when(producer.send(any()))
+                .thenThrow(new IllegalStateException("Kafka unavailable"))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        groupingService.submit(update(1L, "Regular update", List.of(111L), UpdatePriority.MEDIUM));
+
+        awaitSendAttempts(2);
+    }
+
+    @Test
+    void retriesGroupWhenProducerFutureFails() {
+        when(producer.send(any()))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("Kafka unavailable")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        groupingService.submit(update(1L, "Regular update", List.of(111L), UpdatePriority.MEDIUM));
+
+        awaitSendAttempts(2);
+    }
+
     private ProcessedLinkUpdateEvent awaitSentUpdate() {
         var captor = ArgumentCaptor.forClass(ProcessedLinkUpdateEvent.class);
         Awaitility.await().atMost(Duration.ofSeconds(2)).untilAsserted(() -> verify(producer)
                 .send(captor.capture()));
         return captor.getValue();
+    }
+
+    private void awaitSendAttempts(int expectedAttempts) {
+        Awaitility.await().atMost(Duration.ofSeconds(2)).untilAsserted(() -> verify(producer, times(expectedAttempts))
+                .send(any()));
     }
 
     private ProcessedLinkUpdateEvent update(
