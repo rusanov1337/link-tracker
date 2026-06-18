@@ -6,7 +6,10 @@ management:
     web:
       base-path: /
       exposure:
-        include: health,info,prometheus
+        include:
+          - health
+          - info
+          - prometheus
       path-mapping:
         prometheus: metrics
   endpoint:

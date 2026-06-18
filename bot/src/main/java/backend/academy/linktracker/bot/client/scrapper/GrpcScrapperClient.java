@@ -3,7 +3,6 @@ package backend.academy.linktracker.bot.client.scrapper;
 import backend.academy.linktracker.bot.client.scrapper.dto.LinkResponse;
 import backend.academy.linktracker.bot.client.scrapper.dto.ListLinksResponse;
 import backend.academy.linktracker.bot.properties.ScrapperProperties;
-import backend.academy.linktracker.bot.service.BotMetricsService;
 import backend.academy.linktracker.grpc.AddLinkRequest;
 import backend.academy.linktracker.grpc.ListLinksRequest;
 import backend.academy.linktracker.grpc.RegisterChatRequest;
@@ -14,6 +13,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Metadata;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.micrometer.core.annotation.Timed;
 import jakarta.annotation.PreDestroy;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -29,10 +29,8 @@ public class GrpcScrapperClient implements ScrapperClient {
 
     private final ManagedChannel channel;
     private final ScrapperServiceGrpc.ScrapperServiceBlockingStub blockingStub;
-    private final BotMetricsService botMetricsService;
 
-    public GrpcScrapperClient(ScrapperProperties scrapperProperties, BotMetricsService botMetricsService) {
-        this.botMetricsService = botMetricsService;
+    public GrpcScrapperClient(ScrapperProperties scrapperProperties) {
         this.channel = ManagedChannelBuilder.forAddress(
                         scrapperProperties.getGrpc().getHost(),
                         scrapperProperties.getGrpc().getPort())
@@ -43,8 +41,13 @@ public class GrpcScrapperClient implements ScrapperClient {
     }
 
     @Override
+    @Timed(
+            value = "command_duration_ms_total",
+            extraTags = {"scope", "scrapper_sync_api", "scope_type", "registerChat"},
+            histogram = true,
+            serviceLevelObjectives = {0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5},
+            description = "Bot command operation duration")
     public void ensureChatRegistered(long chatId) {
-        var startNanos = System.nanoTime();
         try {
             blockingStub.registerChat(
                     RegisterChatRequest.newBuilder().setChatId(chatId).build());
@@ -53,15 +56,17 @@ public class GrpcScrapperClient implements ScrapperClient {
                 return;
             }
             throw toScrapperClientException(exception);
-        } finally {
-            botMetricsService.recordCommandDuration(
-                    "scrapper_sync_api", "registerChat", System.nanoTime() - startNanos);
         }
     }
 
     @Override
+    @Timed(
+            value = "command_duration_ms_total",
+            extraTags = {"scope", "scrapper_sync_api", "scope_type", "getLinks"},
+            histogram = true,
+            serviceLevelObjectives = {0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5},
+            description = "Bot command operation duration")
     public ListLinksResponse getLinks(long chatId) {
-        var startNanos = System.nanoTime();
         try {
             var response = blockingStub.listLinks(
                     ListLinksRequest.newBuilder().setChatId(chatId).build());
@@ -70,14 +75,17 @@ public class GrpcScrapperClient implements ScrapperClient {
             return new ListLinksResponse(links, response.getSize());
         } catch (StatusRuntimeException exception) {
             throw toScrapperClientException(exception);
-        } finally {
-            botMetricsService.recordCommandDuration("scrapper_sync_api", "getLinks", System.nanoTime() - startNanos);
         }
     }
 
     @Override
+    @Timed(
+            value = "command_duration_ms_total",
+            extraTags = {"scope", "scrapper_sync_api", "scope_type", "addLink"},
+            histogram = true,
+            serviceLevelObjectives = {0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5},
+            description = "Bot command operation duration")
     public LinkResponse addLink(long chatId, String link, List<String> tags, List<String> filters) {
-        var startNanos = System.nanoTime();
         try {
             var request = AddLinkRequest.newBuilder()
                     .setChatId(chatId)
@@ -88,14 +96,17 @@ public class GrpcScrapperClient implements ScrapperClient {
             return toLinkResponse(blockingStub.addLink(request));
         } catch (StatusRuntimeException exception) {
             throw toScrapperClientException(exception);
-        } finally {
-            botMetricsService.recordCommandDuration("scrapper_sync_api", "addLink", System.nanoTime() - startNanos);
         }
     }
 
     @Override
+    @Timed(
+            value = "command_duration_ms_total",
+            extraTags = {"scope", "scrapper_sync_api", "scope_type", "removeLink"},
+            histogram = true,
+            serviceLevelObjectives = {0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5},
+            description = "Bot command operation duration")
     public LinkResponse removeLink(long chatId, String link) {
-        var startNanos = System.nanoTime();
         try {
             var request = RemoveLinkRequest.newBuilder()
                     .setChatId(chatId)
@@ -104,8 +115,6 @@ public class GrpcScrapperClient implements ScrapperClient {
             return toLinkResponse(blockingStub.removeLink(request));
         } catch (StatusRuntimeException exception) {
             throw toScrapperClientException(exception);
-        } finally {
-            botMetricsService.recordCommandDuration("scrapper_sync_api", "removeLink", System.nanoTime() - startNanos);
         }
     }
 

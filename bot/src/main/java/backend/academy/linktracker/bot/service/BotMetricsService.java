@@ -88,6 +88,7 @@ public class BotMetricsService {
                                 .description("Bot command operation duration")
                                 .tag("scope", key.scope())
                                 .tag("scope_type", key.scopeType())
+                                .tag("exception", "none")
                                 .serviceLevelObjectives(
                                         Duration.ofMillis(25),
                                         Duration.ofMillis(50),
