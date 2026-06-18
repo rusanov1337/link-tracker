@@ -9,9 +9,11 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class UpdateGroupingService {
 
     private final AiAgentProperties properties;
@@ -48,9 +50,35 @@ public class UpdateGroupingService {
 
     private void flush(Long chatId) {
         var group = groups.remove(chatId);
-        if (group != null) {
-            producer.send(group.toUpdate());
+        if (group == null) {
+            return;
         }
+
+        try {
+            producer.send(group.toUpdate()).whenComplete((result, exception) -> {
+                if (exception != null) {
+                    restoreAndReschedule(group, exception);
+                }
+            });
+        } catch (RuntimeException exception) {
+            restoreAndReschedule(group, exception);
+        }
+    }
+
+    private void restoreAndReschedule(PendingGroup failedGroup, Throwable exception) {
+        log.atWarn()
+                .addKeyValue("chatId", failedGroup.chatId())
+                .setCause(exception)
+                .log("Failed to publish grouped update, scheduling retry");
+
+        groups.compute(failedGroup.chatId(), (chatId, pendingGroup) -> {
+            if (pendingGroup == null) {
+                scheduleFlush(chatId);
+                return failedGroup;
+            }
+            failedGroup.append(pendingGroup);
+            return failedGroup;
+        });
     }
 
     private ProcessedLinkUpdateEvent singleChatUpdate(ProcessedLinkUpdateEvent update, Long chatId) {
@@ -69,6 +97,14 @@ public class UpdateGroupingService {
 
         private void add(ProcessedLinkUpdateEvent update) {
             updates.add(update);
+        }
+
+        private void append(PendingGroup group) {
+            updates.addAll(group.updates);
+        }
+
+        private Long chatId() {
+            return chatId;
         }
 
         private ProcessedLinkUpdateEvent toUpdate() {
