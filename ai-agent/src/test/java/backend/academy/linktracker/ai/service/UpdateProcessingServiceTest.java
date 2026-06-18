@@ -32,6 +32,20 @@ class UpdateProcessingServiceTest {
     }
 
     @Test
+    void filtersUpdateByStopWordIgnoringCase() {
+        var result = processingService.process(update("Useful text with SPAM marker", "alice"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void doesNotFilterStopWordInsideAnotherWord() {
+        var result = processingService.process(update("Discussion about antispam protection", "alice"));
+
+        assertThat(result).isPresent();
+    }
+
+    @Test
     void filtersUpdateByExcludedAuthor() {
         var result = processingService.process(update("Long enough regular update text", "bot-user"));
 

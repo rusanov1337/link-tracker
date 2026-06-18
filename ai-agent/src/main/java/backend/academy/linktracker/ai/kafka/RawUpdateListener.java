@@ -2,29 +2,40 @@ package backend.academy.linktracker.ai.kafka;
 
 import backend.academy.linktracker.ai.dto.RawLinkUpdateEvent;
 import backend.academy.linktracker.ai.service.UpdateProcessingService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.validation.Validator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
+@Slf4j
 public class RawUpdateListener {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(RawUpdateListener.class);
 
     private final UpdateProcessingService processingService;
     private final ProcessedUpdateProducer producer;
-
-    public RawUpdateListener(UpdateProcessingService processingService, ProcessedUpdateProducer producer) {
-        this.processingService = processingService;
-        this.producer = producer;
-    }
+    private final Validator validator;
 
     @KafkaListener(topics = "${ai-agent.kafka.topics.raw-updates}")
     public void handle(RawLinkUpdateEvent update) {
-        LOGGER.info("Raw update received id={}", update.id());
+        if (update == null) {
+            log.warn("Null raw update skipped");
+            return;
+        }
+
+        var violations = validator.validate(update);
+        if (!violations.isEmpty()) {
+            log.atWarn()
+                    .addKeyValue("updateId", update.id())
+                    .addKeyValue("violations", violations)
+                    .log("Invalid raw update skipped");
+            return;
+        }
+
+        log.info("Raw update received id={}", update.id());
         processingService
                 .process(update)
-                .ifPresentOrElse(producer::send, () -> LOGGER.info("Raw update filtered id={}", update.id()));
+                .ifPresentOrElse(producer::send, () -> log.info("Raw update filtered id={}", update.id()));
     }
 }
