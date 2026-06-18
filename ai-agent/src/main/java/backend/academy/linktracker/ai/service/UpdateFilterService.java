@@ -2,7 +2,7 @@ package backend.academy.linktracker.ai.service;
 
 import backend.academy.linktracker.ai.dto.RawLinkUpdateEvent;
 import backend.academy.linktracker.ai.properties.AiAgentProperties;
-import java.util.Locale;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,12 +24,12 @@ public class UpdateFilterService {
     }
 
     private boolean containsStopWord(String description) {
-        var normalizedDescription = description.toLowerCase(Locale.ROOT);
         return properties.getFiltering().getStopWords().stream()
                 .map(this::normalize)
+                .map(String::trim)
                 .filter(stopWord -> !stopWord.isBlank())
-                .map(stopWord -> stopWord.toLowerCase(Locale.ROOT))
-                .anyMatch(normalizedDescription::contains);
+                .map(this::stopWordPattern)
+                .anyMatch(pattern -> pattern.matcher(description).find());
     }
 
     private boolean isExcludedAuthor(String author) {
@@ -41,5 +41,11 @@ public class UpdateFilterService {
 
     private String normalize(String value) {
         return value == null ? "" : value;
+    }
+
+    private Pattern stopWordPattern(String stopWord) {
+        return Pattern.compile(
+                "(?<![\\p{L}\\p{N}_])" + Pattern.quote(stopWord) + "(?![\\p{L}\\p{N}_])",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     }
 }

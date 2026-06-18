@@ -1,5 +1,10 @@
 package backend.academy.linktracker.scrapper.client.external;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,14 +14,11 @@ import backend.academy.linktracker.scrapper.domain.TrackedLink;
 import backend.academy.linktracker.scrapper.domain.UpdateEventType;
 import backend.academy.linktracker.scrapper.properties.GithubProperties;
 import backend.academy.linktracker.scrapper.properties.ResilienceProperties;
-import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
-import java.net.InetSocketAddress;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,17 +27,17 @@ import org.springframework.web.client.RestClient;
 
 class GithubExternalLinkClientTest {
 
-    private HttpServer server;
+    private WireMockServer server;
     private GithubExternalLinkClient client;
     private ResilienceProperties resilienceProperties;
 
     @BeforeEach
-    void setup() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(0), 0);
+    void setup() {
+        server = new WireMockServer(wireMockConfig().dynamicPort());
         server.start();
 
         var properties = new GithubProperties();
-        properties.setBaseUrl("http://localhost:" + server.getAddress().getPort());
+        properties.setBaseUrl(server.baseUrl());
         properties.setToken("");
 
         var restClient = RestClient.builder()
@@ -50,14 +52,14 @@ class GithubExternalLinkClientTest {
     @AfterEach
     void tearDown() {
         if (server != null) {
-            server.stop(0);
+            server.stop();
         }
     }
 
     @Test
     void fetchUpdatesReturnsDetectedIssueWhenResponseIsValid() {
-        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
-            var payload = """
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .willReturn(aResponse().withStatus(200).withBody("""
                     [
                       {
                         "id": 101,
@@ -67,13 +69,7 @@ class GithubExternalLinkClientTest {
                         "user": {"login": "octocat"}
                       }
                     ]
-                    """;
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
+                    """)));
 
         var trackedLink = TrackedLink.create(
                 1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
@@ -92,10 +88,8 @@ class GithubExternalLinkClientTest {
 
     @Test
     void fetchUpdatesReturnsEmptyWhenProviderReturnsError() {
-        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
-            exchange.sendResponseHeaders(503, -1);
-            exchange.close();
-        });
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .willReturn(aResponse().withStatus(503)));
 
         var trackedLink = TrackedLink.create(
                 1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
@@ -106,66 +100,49 @@ class GithubExternalLinkClientTest {
 
     @Test
     void fetchUpdatesRetriesRetryableStatus() {
-        var calls = new AtomicInteger();
-        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
-            var call = calls.incrementAndGet();
-            if (call < 3) {
-                exchange.sendResponseHeaders(500, -1);
-                exchange.close();
-                return;
-            }
-
-            var payload = "[]";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .inScenario("github-retry")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withStatus(500))
+                .willSetStateTo("second-attempt"));
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .inScenario("github-retry")
+                .whenScenarioStateIs("second-attempt")
+                .willReturn(aResponse().withStatus(500))
+                .willSetStateTo("third-attempt"));
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .inScenario("github-retry")
+                .whenScenarioStateIs("third-attempt")
+                .willReturn(aResponse().withStatus(200).withBody("[]")));
 
         var trackedLink = TrackedLink.create(
                 1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
         var result = client.fetchUpdates(trackedLink);
 
         assertFalse(result.failed());
-        assertEquals(3, calls.get());
+        server.verify(3, getRequestedFor(urlPathEqualTo("/repos/octocat/hello-world/issues")));
     }
 
     @Test
     void fetchUpdatesDoesNotRetryNonRetryableStatus() {
-        var calls = new AtomicInteger();
-        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
-            calls.incrementAndGet();
-            exchange.sendResponseHeaders(400, -1);
-            exchange.close();
-        });
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .willReturn(aResponse().withStatus(400)));
 
         var trackedLink = TrackedLink.create(
                 1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
         var result = client.fetchUpdates(trackedLink);
 
         assertTrue(result.failed());
-        assertEquals(1, calls.get());
+        server.verify(1, getRequestedFor(urlPathEqualTo("/repos/octocat/hello-world/issues")));
     }
 
     @Test
-    void fetchUpdatesFailsByReadTimeoutBeforeProviderResponds() throws IOException {
-        tearDown();
-
-        server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-            }
-            exchange.sendResponseHeaders(200, -1);
-            exchange.close();
-        });
-        server.start();
+    void fetchUpdatesFailsByReadTimeoutBeforeProviderResponds() {
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .willReturn(aResponse().withStatus(200).withFixedDelay(500)));
 
         var properties = new GithubProperties();
-        properties.setBaseUrl("http://localhost:" + server.getAddress().getPort());
+        properties.setBaseUrl(server.baseUrl());
         properties.setReadTimeout(Duration.ofMillis(100));
 
         var restClient = RestClient.builder()
@@ -193,12 +170,8 @@ class GithubExternalLinkClientTest {
 
     @Test
     void fetchUpdatesDoesNotCallProviderWhenCircuitBreakerIsOpen() {
-        var calls = new AtomicInteger();
-        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
-            calls.incrementAndGet();
-            exchange.sendResponseHeaders(500, -1);
-            exchange.close();
-        });
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .willReturn(aResponse().withStatus(500)));
         resilienceProperties.getRetry().setMaxAttempts(1);
         resilienceProperties.getCircuitBreaker().setSlidingWindowSize(2);
         resilienceProperties.getCircuitBreaker().setMinimumNumberOfCalls(2);
@@ -211,19 +184,13 @@ class GithubExternalLinkClientTest {
         assertTrue(client.fetchUpdates(trackedLink).failed());
         assertTrue(client.fetchUpdates(trackedLink).failed());
 
-        assertEquals(2, calls.get());
+        server.verify(2, getRequestedFor(urlPathEqualTo("/repos/octocat/hello-world/issues")));
     }
 
     @Test
     void fetchUpdatesReturnsEmptyWhenBodyIsMalformed() {
-        server.createContext("/repos/octocat/hello-world/issues", exchange -> {
-            var payload = "[{\"id\":";
-            var bytes = payload.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (var responseBody = exchange.getResponseBody()) {
-                responseBody.write(bytes);
-            }
-        });
+        server.stubFor(get(urlPathEqualTo("/repos/octocat/hello-world/issues"))
+                .willReturn(aResponse().withStatus(200).withBody("[{\"id\":")));
 
         var trackedLink = TrackedLink.create(
                 1L, URI.create("https://github.com/octocat/hello-world"), Instant.parse("2025-01-01T00:00:00Z"));
