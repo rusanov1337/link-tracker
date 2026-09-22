@@ -14,7 +14,11 @@ Endpoints:
 
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
-- Grafana login/password: `admin` / `admin`
+- Grafana login: `admin`; начальный пароль задаётся через `GRAFANA_ADMIN_PASSWORD`
+  в `.env` (демонстрационное локальное значение по умолчанию: `link-tracker-local-grafana`).
+
+Для уже созданного хранилища Grafana действует прежний пароль; изменение переменной
+не сбрасывает его. Порты Prometheus и Grafana опубликованы только на `127.0.0.1`.
 
 Файлы конфигурации:
 
@@ -26,6 +30,9 @@ Endpoints:
 - `example_pql.txt`
 
 ## Запуск
+
+Подготовьте `.env` по [.env.example](.env.example) и передайте его переменные приложениям,
+как описано в [README.md](README.md#переменные-окружения).
 
 Сначала соберите сервисы:
 

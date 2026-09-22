@@ -1,3 +1,5 @@
+# Local development only: published ports are bound to the host loopback interface.
+# Password defaults are public examples; override them in an untracked .env file.
 services:
   postgres:
     image: postgres:17-alpine
@@ -5,9 +7,9 @@ services:
     environment:
       POSTGRES_DB: link_tracker
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${SCRAPPER_DB_PASSWORD:-link-tracker-local-postgres}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +31,7 @@ services:
       - --changelog-file=master.xml
       - --url=jdbc:postgresql://postgres:5432/link_tracker
       - --username=postgres
-      - --password=postgres
+      - --password=${SCRAPPER_DB_PASSWORD:-link-tracker-local-postgres}
       - update
     restart: "no"
 
@@ -53,7 +55,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
     ports:
-      - "19092:19092"
+      - "127.0.0.1:19092:19092"
     volumes:
       - kafka-1-data:/var/lib/kafka/data
     healthcheck:
@@ -82,7 +84,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
     ports:
-      - "29092:29092"
+      - "127.0.0.1:29092:29092"
     volumes:
       - kafka-2-data:/var/lib/kafka/data
     healthcheck:
@@ -111,7 +113,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
     ports:
-      - "39092:39092"
+      - "127.0.0.1:39092:39092"
     volumes:
       - kafka-3-data:/var/lib/kafka/data
     healthcheck:
@@ -157,7 +159,7 @@ services:
       kafka-3:
         condition: service_healthy
     ports:
-      - "8085:8080"
+      - "127.0.0.1:8085:8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/apis >/dev/null 2>&1"]
       interval: 10s
@@ -180,7 +182,7 @@ services:
       - --protected-mode
       - "no"
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - valkey-1-data:/data
     healthcheck:
@@ -205,7 +207,7 @@ services:
       - --protected-mode
       - "no"
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - valkey-2-data:/data
     healthcheck:
@@ -230,7 +232,7 @@ services:
       - --protected-mode
       - "no"
     ports:
-      - "6381:6379"
+      - "127.0.0.1:6381:6379"
     volumes:
       - valkey-3-data:/data
     healthcheck:
@@ -274,7 +276,7 @@ services:
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -288,10 +290,10 @@ services:
       - prometheus
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-link-tracker-local-grafana}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro

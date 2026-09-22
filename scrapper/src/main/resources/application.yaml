@@ -24,7 +24,7 @@ spring:
   datasource:
     url: ${SCRAPPER_DB_URL:jdbc:postgresql://localhost:5432/link_tracker}
     username: ${SCRAPPER_DB_USERNAME:postgres}
-    password: ${SCRAPPER_DB_PASSWORD:postgres}
+    password: ${SCRAPPER_DB_PASSWORD:link-tracker-local-postgres}
   jpa:
     hibernate:
       ddl-auto: validate

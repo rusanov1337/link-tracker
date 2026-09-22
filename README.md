@@ -2,7 +2,7 @@
 
 LinkTracker – Telegram-бот, который отслеживает изменения на веб-страницах и оперативно информирует пользователя о них.
 
-Это шаблон проекта, который вам необходимо взять за основу для разработки своей системы.
+Проект разработан в рамках Т-Академии.
 
 ## Telegram API
 
@@ -72,27 +72,39 @@ java -jar ./bot/target/bot-0.0.1.jar --app.telegram.polling-enabled=true
 
 ### Переменные окружения
 
-Для локального запуска `bot` и `scrapper`:
+Для локального запуска сервисов используйте [.env.example](.env.example).
+При первом запуске, если `.env` ещё нет, создайте локальную копию:
 
 ```bash
-export TELEGRAM_TOKEN="telegram_bot_token"
-export SCRAPPER_BASE_URL="http://localhost:8081"
-export SCRAPPER_DB_URL="jdbc:postgresql://localhost:5432/link_tracker"
-export SCRAPPER_DB_USERNAME="postgres"
-export SCRAPPER_DB_PASSWORD="postgres"
-export SCRAPPER_DB_ACCESS_TYPE="SQL" # или ORM
-export BOT_BASE_URL="http://localhost:8080"
-export BOT_TRANSPORT="kafka"
-export KAFKA_BOOTSTRAP_SERVERS="localhost:19092"
-export KAFKA_SCHEMA_REGISTRY_URL="http://localhost:8085"
-export AI_AGENT_ENABLED="true"
-export AI_AGENT_RAW_UPDATES_TOPIC="link.raw-updates"
-export AI_AGENT_PROCESSED_UPDATES_TOPIC="link.processed-updates"
-export VALKEY_HOST="localhost"
-export VALKEY_PORT="6379"
-export VALKEY_CLUSTER_ENABLED="true"
-export VALKEY_CLUSTER_NODES="localhost:6379,localhost:6380,localhost:6381"
+cp .env.example .env
 ```
+
+В `.env` замените `TELEGRAM_TOKEN` на токен своего бота. Пароли
+`SCRAPPER_DB_PASSWORD` и `GRAFANA_ADMIN_PASSWORD` в примере — публичные демонстрационные
+значения для локального стенда. Для собственных значений используйте только `.env`;
+файл исключён из Git. При необходимости замените `SCRAPPER_DB_ACCESS_TYPE=SQL` на `ORM`.
+
+Docker Compose автоматически читает `.env` из корня проекта. Для приложений,
+запускаемых через `java -jar`, загрузите переменные в текущую сессию Bash/Zsh:
+
+```bash
+set -a
+. ./.env
+set +a
+```
+
+Загружайте только свой доверенный `.env`: эта команда выполняет его как shell-файл.
+Значения с пробелами или специальными символами заключайте в одинарные кавычки.
+В IDE или PowerShell задайте те же переменные в окружении запуска сервисов.
+После изменения `.env` обновите окружение каждого процесса.
+
+PostgreSQL, контейнер миграций и `scrapper` используют один `SCRAPPER_DB_PASSWORD`;
+его локальное значение по умолчанию — `link-tracker-local-postgres`.
+Если том PostgreSQL уже создан, новый параметр не меняет пароль существующей базы.
+Укажите в `.env` прежний пароль (для старого стенда — `postgres`) либо отдельно смените
+его в базе. Аналогично, существующая Grafana сохраняет ранее настроенный пароль:
+`GRAFANA_ADMIN_PASSWORD` задаёт начальный пароль для нового хранилища.
+Для смены паролей не требуется удалять тома с данными.
 
 При необходимости можно также задать:
 
@@ -125,11 +137,15 @@ export RATE_LIMITING_LIMIT_REFRESH_PERIOD="1m"
 export RATE_LIMITING_TIMEOUT_DURATION="0ms"
 export AI_AGENT_STOP_WORDS="spam,ads,promo"
 export AI_AGENT_EXCLUDED_AUTHORS="bot-user"
-export AI_AGENT_MIN_LENGTH="20"
+export AI_AGENT_FILTERING_MIN_LENGTH="20"
 export AI_AGENT_SUMMARIZATION_THRESHOLD="500"
 ```
 
 ### Локальный запуск инфраструктуры
+
+Опубликованные порты инфраструктуры привязаны к `127.0.0.1` и предназначены для
+доступа с этого компьютера. Контейнеры общаются по внутренней сети Compose.
+Эта конфигурация с демонстрационными паролями рассчитана на локальную разработку.
 
 ```bash
 docker compose up -d postgres kafka-1 kafka-2 kafka-3 kafka-init schema-registry valkey-1 valkey-2 valkey-3 valkey-init
@@ -205,7 +221,7 @@ java -jar ./scrapper/target/scrapper-0.0.1.jar
 - `AI_AGENT_ENABLED`
 - `AI_AGENT_STOP_WORDS`
 - `AI_AGENT_EXCLUDED_AUTHORS`
-- `AI_AGENT_MIN_LENGTH`
+- `AI_AGENT_FILTERING_MIN_LENGTH`
 - `AI_AGENT_SUMMARIZATION_THRESHOLD`
 
 Локальная проверка Kafka-интеграции:
